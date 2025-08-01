@@ -1,13 +1,16 @@
-FROM golang:latest AS builder
+
+# Python-based Dockerfile for FastAPI model serving
+FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY ./ ./
-RUN make build
+# Install dependencies
+COPY python/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
-WORKDIR /app
-COPY --from=builder /app/kubernetes-mcp-server /app/kubernetes-mcp-server
-ENTRYPOINT ["/app/kubernetes-mcp-server", "--port", "8080"]
+# Copy model server code
+COPY python/kubernetes_mcp_server/ ./kubernetes_mcp_server/
 
 EXPOSE 8080
+
+ENTRYPOINT ["uvicorn", "kubernetes_mcp_server.inference_server:app", "--host", "0.0.0.0", "--port", "8080"]
