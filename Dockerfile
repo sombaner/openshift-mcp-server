@@ -1,4 +1,3 @@
-
 # Python-based Dockerfile for FastAPI model serving
 FROM python:3.11-slim
 
