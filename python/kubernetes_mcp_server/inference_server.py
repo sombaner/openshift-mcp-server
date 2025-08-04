@@ -5,16 +5,19 @@ import uvicorn
 
 app = FastAPI()
 
-class InferenceRequest(BaseModel):
-    input: Any
-
 class InferenceResponse(BaseModel):
     output: Any
 
 @app.post("/infer", response_model=InferenceResponse)
-def infer(request: InferenceRequest):
-    # Dummy model: echo input
-    result = request.input
+async def infer(request: Request):
+    data = await request.json()
+    # Accept both 'input' and 'inputs' keys
+    if "input" in data:
+        result = data["input"]
+    elif "inputs" in data:
+        result = data["inputs"]
+    else:
+        return {"output": None}
     return {"output": result}
 
 @app.get("/")

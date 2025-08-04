@@ -14,6 +14,7 @@ else:
 
 #__version__ = version("kubernetes-mcp-server")
 
+
 def get_platform_binary():
     """Determine the correct binary for the current platform."""
     system = platform.system().lower()
