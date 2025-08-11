@@ -4,47 +4,41 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	// OpenShift specific imports
-	appsv1client "github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1"
-	routev1 "github.com/openshift/api/route/v1"
-	routev1client "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	// Networking for Ingress support
+	networkingv1 "k8s.io/api/networking/v1"
 )
 
 type DeploymentAutomation struct {
 	kubeClient      kubernetes.Interface
-	openshiftConfig *rest.Config
-	appsClient      appsv1client.AppsV1Interface
-	routeClient     routev1client.RouteV1Interface
+	kubeConfig      *rest.Config
 	defaultTemplate *DeploymentTemplate
 }
 
 type DeploymentConfig struct {
-	Name         string
-	Namespace    string
-	Image        string
-	Tag          string
-	Replicas     int32
-	Port         int32
-	ServiceType  string
-	Labels       map[string]string
-	Annotations  map[string]string
-	EnvVars      map[string]string
-	Resources    *ResourceRequirements
-	Strategy     string // "recreate", "rolling", "blue-green"
-	ExposeRoute  bool
-	RouteDomain  string
+	Name          string
+	Namespace     string
+	Image         string
+	Tag           string
+	Replicas      int32
+	Port          int32
+	ServiceType   string
+	Labels        map[string]string
+	Annotations   map[string]string
+	EnvVars       map[string]string
+	Resources     *ResourceRequirements
+	Strategy      string // "recreate", "rolling", "blue-green"
+	ExposeIngress bool
+	IngressDomain string
 }
 
 type ResourceRequirements struct {
@@ -53,25 +47,25 @@ type ResourceRequirements struct {
 }
 
 type DeploymentTemplate struct {
-	DefaultReplicas int32
-	DefaultPort     int32
+	DefaultReplicas  int32
+	DefaultPort      int32
 	DefaultResources *ResourceRequirements
-	DefaultLabels   map[string]string
-	DefaultEnvVars  map[string]string
+	DefaultLabels    map[string]string
+	DefaultEnvVars   map[string]string
 }
 
 type DeploymentResult struct {
-	Name          string
-	Namespace     string
-	Image         string
-	Status        string
-	Replicas      string
-	ServiceName   string
-	RouteURL      string
-	DeployTime    time.Duration
-	Success       bool
-	Error         error
-	Logs          []string
+	Name        string
+	Namespace   string
+	Image       string
+	Status      string
+	Replicas    string
+	ServiceName string
+	IngressURL  string
+	DeployTime  time.Duration
+	Success     bool
+	Error       error
+	Logs        []string
 }
 
 func NewDeploymentAutomation(kubeConfig *rest.Config) (*DeploymentAutomation, error) {
@@ -79,26 +73,6 @@ func NewDeploymentAutomation(kubeConfig *rest.Config) (*DeploymentAutomation, er
 	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
-	}
-
-	var appsClient appsv1client.AppsV1Interface
-	var routeClient routev1client.RouteV1Interface
-
-	// Try to create OpenShift clients
-	if kubeConfig != nil {
-		appsClientset, err := appsv1client.NewForConfig(kubeConfig)
-		if err != nil {
-			log.Printf("Warning: Failed to create OpenShift apps client: %v", err)
-		} else {
-			appsClient = appsClientset
-		}
-
-		routeClientset, err := routev1client.NewForConfig(kubeConfig)
-		if err != nil {
-			log.Printf("Warning: Failed to create OpenShift route client: %v", err)
-		} else {
-			routeClient = routeClientset
-		}
 	}
 
 	// Set default template
@@ -125,9 +99,7 @@ func NewDeploymentAutomation(kubeConfig *rest.Config) (*DeploymentAutomation, er
 
 	return &DeploymentAutomation{
 		kubeClient:      kubeClient,
-		openshiftConfig: kubeConfig,
-		appsClient:      appsClient,
-		routeClient:     routeClient,
+		kubeConfig:      kubeConfig,
 		defaultTemplate: defaultTemplate,
 	}, nil
 }
@@ -198,16 +170,18 @@ func (da *DeploymentAutomation) DeployApplication(ctx context.Context, config De
 	}
 	logs = append(logs, fmt.Sprintf("Created/updated service %s", service.Name))
 
-	// Create route if requested and OpenShift is available
-	var routeURL string
-	if config.ExposeRoute && da.routeClient != nil {
-		route, err := da.createOrUpdateRoute(ctx, config)
+	// Create ingress if requested
+	var ingressURL string
+	if config.ExposeIngress {
+		ingress, err := da.createOrUpdateIngress(ctx, config)
 		if err != nil {
-			log.Printf("Warning: Failed to create route: %v", err)
-			logs = append(logs, fmt.Sprintf("Warning: Failed to create route: %v", err))
+			log.Printf("Warning: Failed to create ingress: %v", err)
+			logs = append(logs, fmt.Sprintf("Warning: Failed to create ingress: %v", err))
 		} else {
-			routeURL = fmt.Sprintf("https://%s", route.Spec.Host)
-			logs = append(logs, fmt.Sprintf("Created/updated route %s with URL %s", route.Name, routeURL))
+			if len(ingress.Spec.Rules) > 0 {
+				ingressURL = fmt.Sprintf("https://%s", ingress.Spec.Rules[0].Host)
+				logs = append(logs, fmt.Sprintf("Created/updated ingress %s with URL %s", ingress.Name, ingressURL))
+			}
 		}
 	}
 
@@ -240,7 +214,7 @@ func (da *DeploymentAutomation) DeployApplication(ctx context.Context, config De
 		Status:      "Ready",
 		Replicas:    fmt.Sprintf("%d/%d", deployment.Status.ReadyReplicas, deployment.Status.Replicas),
 		ServiceName: service.Name,
-		RouteURL:    routeURL,
+		IngressURL:  ingressURL,
 		DeployTime:  time.Since(startTime),
 		Success:     true,
 		Error:       nil,
@@ -411,49 +385,60 @@ func (da *DeploymentAutomation) createOrUpdateService(ctx context.Context, confi
 	}
 }
 
-func (da *DeploymentAutomation) createOrUpdateRoute(ctx context.Context, config DeploymentConfig) (*routev1.Route, error) {
-	if da.routeClient == nil {
-		return nil, fmt.Errorf("OpenShift route client not available")
-	}
-
+func (da *DeploymentAutomation) createOrUpdateIngress(ctx context.Context, config DeploymentConfig) (*networkingv1.Ingress, error) {
 	labels := config.Labels
 	labels["app"] = config.Name
 
-	route := &routev1.Route{
+	pathType := networkingv1.PathTypePrefix
+
+	ingress := &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        config.Name,
 			Namespace:   config.Namespace,
 			Labels:      labels,
 			Annotations: config.Annotations,
 		},
-		Spec: routev1.RouteSpec{
-			To: routev1.RouteTargetReference{
-				Kind: "Service",
-				Name: config.Name,
-			},
-			Port: &routev1.RoutePort{
-				TargetPort: intstr.FromInt(int(config.Port)),
-			},
-			TLS: &routev1.TLSConfig{
-				Termination:                   routev1.TLSTerminationEdge,
-				InsecureEdgeTerminationPolicy: routev1.InsecureEdgeTerminationPolicyRedirect,
+		Spec: networkingv1.IngressSpec{
+			Rules: []networkingv1.IngressRule{
+				{
+					Host: func() string {
+						if config.IngressDomain != "" {
+							return fmt.Sprintf("%s.%s", config.Name, config.IngressDomain)
+						}
+						return fmt.Sprintf("%s.example.com", config.Name)
+					}(),
+					IngressRuleValue: networkingv1.IngressRuleValue{
+						HTTP: &networkingv1.HTTPIngressRuleValue{
+							Paths: []networkingv1.HTTPIngressPath{
+								{
+									Path:     "/",
+									PathType: &pathType,
+									Backend: networkingv1.IngressBackend{
+										Service: &networkingv1.IngressServiceBackend{
+											Name: config.Name,
+											Port: networkingv1.ServiceBackendPort{
+												Number: config.Port,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
 
-	if config.RouteDomain != "" {
-		route.Spec.Host = fmt.Sprintf("%s.%s", config.Name, config.RouteDomain)
-	}
-
-	// Try to get existing route
-	existingRoute, err := da.routeClient.Routes(config.Namespace).Get(ctx, config.Name, metav1.GetOptions{})
+	// Try to get existing ingress
+	existingIngress, err := da.kubeClient.NetworkingV1().Ingresses(config.Namespace).Get(ctx, config.Name, metav1.GetOptions{})
 	if err != nil {
-		// Create new route
-		return da.routeClient.Routes(config.Namespace).Create(ctx, route, metav1.CreateOptions{})
+		// Create new ingress
+		return da.kubeClient.NetworkingV1().Ingresses(config.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
 	} else {
-		// Update existing route
-		route.ObjectMeta.ResourceVersion = existingRoute.ObjectMeta.ResourceVersion
-		return da.routeClient.Routes(config.Namespace).Update(ctx, route, metav1.UpdateOptions{})
+		// Update existing ingress
+		ingress.ObjectMeta.ResourceVersion = existingIngress.ObjectMeta.ResourceVersion
+		return da.kubeClient.NetworkingV1().Ingresses(config.Namespace).Update(ctx, ingress, metav1.UpdateOptions{})
 	}
 }
 
@@ -499,14 +484,12 @@ func (da *DeploymentAutomation) DeleteApplication(ctx context.Context, namespace
 		logs = append(logs, fmt.Sprintf("Deleted service %s", name))
 	}
 
-	// Delete route if OpenShift is available
-	if da.routeClient != nil {
-		err = da.routeClient.Routes(namespace).Delete(ctx, name, metav1.DeleteOptions{})
-		if err != nil {
-			logs = append(logs, fmt.Sprintf("Warning: Failed to delete route: %v", err))
-		} else {
-			logs = append(logs, fmt.Sprintf("Deleted route %s", name))
-		}
+	// Delete ingress
+	err = da.kubeClient.NetworkingV1().Ingresses(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	if err != nil {
+		logs = append(logs, fmt.Sprintf("Warning: Failed to delete ingress: %v", err))
+	} else {
+		logs = append(logs, fmt.Sprintf("Deleted ingress %s", name))
 	}
 
 	for _, logEntry := range logs {
@@ -545,12 +528,10 @@ func (da *DeploymentAutomation) ListApplications(ctx context.Context, namespace 
 			}
 		}
 
-		// Try to get route info if OpenShift is available
-		if da.routeClient != nil {
-			route, err := da.routeClient.Routes(namespace).Get(ctx, deployment.Name, metav1.GetOptions{})
-			if err == nil {
-				app.RouteURL = fmt.Sprintf("https://%s", route.Spec.Host)
-			}
+		// Try to get ingress info
+		ingress, err := da.kubeClient.NetworkingV1().Ingresses(namespace).Get(ctx, deployment.Name, metav1.GetOptions{})
+		if err == nil && len(ingress.Spec.Rules) > 0 {
+			app.IngressURL = fmt.Sprintf("https://%s", ingress.Spec.Rules[0].Host)
 		}
 
 		apps = append(apps, app)
@@ -567,7 +548,7 @@ type ApplicationInfo struct {
 	Status      string            `json:"status"`
 	ServiceName string            `json:"service_name,omitempty"`
 	Port        int32             `json:"port,omitempty"`
-	RouteURL    string            `json:"route_url,omitempty"`
+	IngressURL  string            `json:"ingress_url,omitempty"`
 	CreatedAt   time.Time         `json:"created_at"`
 	Labels      map[string]string `json:"labels"`
 }

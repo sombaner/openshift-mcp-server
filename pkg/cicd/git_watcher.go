@@ -9,8 +9,8 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/storage/memory"
 )
 
 type GitWatcher struct {
@@ -216,12 +216,16 @@ func (gw *GitWatcher) getChangedFiles(repo *git.Repository, oldCommit, newCommit
 
 	var files []string
 	for _, change := range changes {
-		switch change.Action {
-		case object.Insert:
+		action, err := change.Action()
+		if err != nil {
+			continue // Skip on error
+		}
+		switch action {
+		case 0: // Insert
 			files = append(files, change.To.Name)
-		case object.Delete:
+		case 1: // Delete
 			files = append(files, change.From.Name)
-		case object.Modify:
+		case 2: // Modify
 			files = append(files, change.To.Name)
 		}
 	}
@@ -243,7 +247,7 @@ func (gw *GitWatcher) AddWebhook(repoURL string, config *WebhookConfig) {
 }
 
 func (gw *GitWatcher) HandleWebhook(repoURL string, payload []byte) error {
-	webhook, exists := gw.webhooks[repoURL]
+	_, exists := gw.webhooks[repoURL]
 	if !exists {
 		return fmt.Errorf("no webhook configured for repository %s", repoURL)
 	}

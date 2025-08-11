@@ -11,12 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/manusa/kubernetes-mcp-server/pkg/config"
 	"github.com/manusa/kubernetes-mcp-server/pkg/mcp"
 	"github.com/manusa/kubernetes-mcp-server/pkg/output"
-
-	// Import the Python inference server components
-	_ "github.com/manusa/kubernetes-mcp-server/python/kubernetes_mcp_server"
+	// Note: Python inference server runs separately in the same container
 )
 
 type IntegratedServer struct {
@@ -28,21 +25,21 @@ type IntegratedServer struct {
 
 type IntegratedConfig struct {
 	// MCP Configuration
-	MCPProfile      string
-	MCPPort         int
-	MCPReadOnly     bool
-	
+	MCPProfile  string
+	MCPPort     int
+	MCPReadOnly bool
+
 	// Inference Configuration
-	InferencePort   int
-	ModelsPath      string
-	
+	InferencePort int
+	ModelsPath    string
+
 	// CI/CD Configuration
-	DefaultRegistry string
+	DefaultRegistry  string
 	DefaultNamespace string
-	
+
 	// General Configuration
-	LogLevel        int
-	KubeConfig      string
+	LogLevel   int
+	KubeConfig string
 }
 
 func NewIntegratedServer(config *IntegratedConfig) (*IntegratedServer, error) {
@@ -74,7 +71,7 @@ func NewIntegratedServer(config *IntegratedConfig) (*IntegratedServer, error) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"healthy","service":"mcp-server"}`))
 	})
-	
+
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.MCPPort),
 		Handler: httpMux,
@@ -82,7 +79,7 @@ func NewIntegratedServer(config *IntegratedConfig) (*IntegratedServer, error) {
 
 	// Create inference server
 	inferenceMux := http.NewServeMux()
-	
+
 	// Add inference endpoints
 	inferenceMux.HandleFunc("/infer", handleInference)
 	inferenceMux.HandleFunc("/models", handleListModels)
@@ -125,14 +122,14 @@ func NewIntegratedServer(config *IntegratedConfig) (*IntegratedServer, error) {
 func DefaultConfig() *IntegratedConfig {
 	return &IntegratedConfig{
 		MCPProfile:       "cicd",
-		MCPPort:         8081,
-		MCPReadOnly:     false,
-		InferencePort:   8080,
-		ModelsPath:      "/app/models",
-		DefaultRegistry: "quay.io",
+		MCPPort:          8081,
+		MCPReadOnly:      false,
+		InferencePort:    8080,
+		ModelsPath:       "/app/models",
+		DefaultRegistry:  "quay.io",
 		DefaultNamespace: "openshift-ai-mcp",
-		LogLevel:        2,
-		KubeConfig:      "",
+		LogLevel:         2,
+		KubeConfig:       "",
 	}
 }
 

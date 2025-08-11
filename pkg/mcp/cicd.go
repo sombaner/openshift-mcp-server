@@ -2,14 +2,12 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/go-git/go-git/v5/plumbing/transport/http"
 
 	"github.com/manusa/kubernetes-mcp-server/pkg/cicd"
 	"github.com/manusa/kubernetes-mcp-server/pkg/output"
@@ -22,7 +20,7 @@ func (s *Server) initCicd() []server.ServerTool {
 		{Tool: mcp.NewTool("git_add_repository",
 			mcp.WithDescription("Add a Git repository for monitoring commits. When new commits are detected, it can trigger automated CI/CD pipelines."),
 			mcp.WithString("url", mcp.Description("Git repository URL (e.g., https://github.com/user/repo.git)"), mcp.Required()),
-			mcp.WithString("branch", mcp.Description("Branch to monitor (default: main)"), mcp.Default("main")),
+			mcp.WithString("branch", mcp.Description("Branch to monitor (default: main)")),
 			mcp.WithString("username", mcp.Description("Git username for authentication (optional)")),
 			mcp.WithString("token", mcp.Description("Git personal access token for authentication (optional)")),
 			// Tool annotations
@@ -44,7 +42,7 @@ func (s *Server) initCicd() []server.ServerTool {
 		{Tool: mcp.NewTool("git_remove_repository",
 			mcp.WithDescription("Remove a Git repository from monitoring"),
 			mcp.WithString("url", mcp.Description("Git repository URL"), mcp.Required()),
-			mcp.WithString("branch", mcp.Description("Branch being monitored (default: main)"), mcp.Default("main")),
+			mcp.WithString("branch", mcp.Description("Branch being monitored (default: main)")),
 			// Tool annotations
 			mcp.WithTitleAnnotation("Git: Remove Repository"),
 			mcp.WithReadOnlyHintAnnotation(false),
@@ -57,13 +55,13 @@ func (s *Server) initCicd() []server.ServerTool {
 			mcp.WithDescription("Build a container image from source code using Docker or OpenShift build strategies"),
 			mcp.WithString("name", mcp.Description("Build/image name"), mcp.Required()),
 			mcp.WithString("source_repo", mcp.Description("Source Git repository URL"), mcp.Required()),
-			mcp.WithString("source_branch", mcp.Description("Source branch (default: main)"), mcp.Default("main")),
+			mcp.WithString("source_branch", mcp.Description("Source branch (default: main)")),
 			mcp.WithString("image_name", mcp.Description("Target image name (e.g., myapp)"), mcp.Required()),
-			mcp.WithString("image_tag", mcp.Description("Target image tag (default: latest)"), mcp.Default("latest")),
-			mcp.WithString("dockerfile", mcp.Description("Dockerfile path (default: Dockerfile)"), mcp.Default("Dockerfile")),
-			mcp.WithString("context_path", mcp.Description("Build context path (default: .)"), mcp.Default(".")),
+			mcp.WithString("image_tag", mcp.Description("Target image tag (default: latest)")),
+			mcp.WithString("dockerfile", mcp.Description("Dockerfile path (default: Dockerfile)")),
+			mcp.WithString("context_path", mcp.Description("Build context path (default: .)")),
 			mcp.WithString("namespace", mcp.Description("Kubernetes namespace for OpenShift builds (optional)")),
-			mcp.WithString("strategy", mcp.Description("Build strategy: 'docker' or 'openshift' (default: docker)"), mcp.Default("docker")),
+			mcp.WithString("strategy", mcp.Description("Build strategy: 'docker' or 'openshift' (default: docker)")),
 			mcp.WithObject("build_args", mcp.Description("Build arguments as key-value pairs (optional)")),
 			mcp.WithObject("labels", mcp.Description("Image labels as key-value pairs (optional)")),
 			// Tool annotations
@@ -91,7 +89,7 @@ func (s *Server) initCicd() []server.ServerTool {
 			mcp.WithString("username", mcp.Description("Registry username"), mcp.Required()),
 			mcp.WithString("password", mcp.Description("Registry password or token"), mcp.Required()),
 			mcp.WithString("email", mcp.Description("Registry email (optional)")),
-			mcp.WithBoolean("secure", mcp.Description("Use HTTPS (default: true)"), mcp.Default(true)),
+			mcp.WithBoolean("secure", mcp.Description("Use HTTPS (default: true)")),
 			// Tool annotations
 			mcp.WithTitleAnnotation("Registry: Add Configuration"),
 			mcp.WithReadOnlyHintAnnotation(false),
@@ -103,7 +101,7 @@ func (s *Server) initCicd() []server.ServerTool {
 			mcp.WithDescription("Push a container image to a registry"),
 			mcp.WithString("source_image", mcp.Description("Source image name and tag"), mcp.Required()),
 			mcp.WithString("target_image", mcp.Description("Target image name in registry"), mcp.Required()),
-			mcp.WithString("target_tag", mcp.Description("Target image tag (default: latest)"), mcp.Default("latest")),
+			mcp.WithString("target_tag", mcp.Description("Target image tag (default: latest)")),
 			mcp.WithString("registry", mcp.Description("Registry configuration name"), mcp.Required()),
 			mcp.WithString("namespace", mcp.Description("Kubernetes namespace (for OpenShift, optional)")),
 			mcp.WithObject("labels", mcp.Description("Additional image labels (optional)")),
@@ -129,12 +127,12 @@ func (s *Server) initCicd() []server.ServerTool {
 			mcp.WithDescription("Deploy an application to OpenShift/Kubernetes from a container image"),
 			mcp.WithString("name", mcp.Description("Application deployment name"), mcp.Required()),
 			mcp.WithString("image", mcp.Description("Container image name"), mcp.Required()),
-			mcp.WithString("tag", mcp.Description("Container image tag (default: latest)"), mcp.Default("latest")),
+			mcp.WithString("tag", mcp.Description("Container image tag (default: latest)")),
 			mcp.WithString("namespace", mcp.Description("Kubernetes namespace"), mcp.Required()),
-			mcp.WithInteger("replicas", mcp.Description("Number of replicas (default: 1)"), mcp.Default(1)),
-			mcp.WithInteger("port", mcp.Description("Application port (default: 8080)"), mcp.Default(8080)),
-			mcp.WithString("service_type", mcp.Description("Service type: ClusterIP, NodePort, LoadBalancer (default: ClusterIP)"), mcp.Default("ClusterIP")),
-			mcp.WithBoolean("expose_route", mcp.Description("Create OpenShift route (default: true)"), mcp.Default(true)),
+			mcp.WithNumber("replicas", mcp.Description("Number of replicas (default: 1)")),
+			mcp.WithNumber("port", mcp.Description("Application port (default: 8080)")),
+			mcp.WithString("service_type", mcp.Description("Service type: ClusterIP, NodePort, LoadBalancer (default: ClusterIP)")),
+			mcp.WithBoolean("expose_route", mcp.Description("Create OpenShift route (default: true)")),
 			mcp.WithString("route_domain", mcp.Description("Custom route domain (optional)")),
 			mcp.WithObject("env_vars", mcp.Description("Environment variables as key-value pairs (optional)")),
 			mcp.WithObject("labels", mcp.Description("Labels as key-value pairs (optional)")),
@@ -172,11 +170,11 @@ func (s *Server) initCicd() []server.ServerTool {
 			mcp.WithDescription("Create a complete CI/CD pipeline that watches a Git repo, builds images, and deploys applications automatically"),
 			mcp.WithString("name", mcp.Description("Pipeline name"), mcp.Required()),
 			mcp.WithString("git_url", mcp.Description("Git repository URL"), mcp.Required()),
-			mcp.WithString("git_branch", mcp.Description("Git branch to monitor (default: main)"), mcp.Default("main")),
+			mcp.WithString("git_branch", mcp.Description("Git branch to monitor (default: main)")),
 			mcp.WithString("image_name", mcp.Description("Target image name"), mcp.Required()),
 			mcp.WithString("registry", mcp.Description("Target registry configuration name"), mcp.Required()),
 			mcp.WithString("deploy_namespace", mcp.Description("Deployment namespace"), mcp.Required()),
-			mcp.WithString("dockerfile", mcp.Description("Dockerfile path (default: Dockerfile)"), mcp.Default("Dockerfile")),
+			mcp.WithString("dockerfile", mcp.Description("Dockerfile path (default: Dockerfile)")),
 			mcp.WithObject("build_args", mcp.Description("Build arguments (optional)")),
 			mcp.WithObject("env_vars", mcp.Description("Deployment environment variables (optional)")),
 			mcp.WithString("git_username", mcp.Description("Git username (optional)")),
@@ -243,17 +241,23 @@ func (s *Server) initCicdManager() error {
 	// Initialize components
 	gitWatcher := cicd.NewGitWatcher(30 * time.Second)
 	
-	imageBuilder, err := cicd.NewImageBuilder(s.k.GetConfig(), "default")
+	derived, err := s.k.Derived(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to get kubernetes client: %w", err)
+	}
+	config := derived.ClientConfig()
+
+	imageBuilder, err := cicd.NewImageBuilder(config, "default")
 	if err != nil {
 		return fmt.Errorf("failed to initialize image builder: %w", err)
 	}
 
-	registryPusher, err := cicd.NewRegistryPusher(s.k.GetConfig())
+	registryPusher, err := cicd.NewRegistryPusher(config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize registry pusher: %w", err)
 	}
 
-	deploymentAutomation, err := cicd.NewDeploymentAutomation(s.k.GetConfig())
+	deploymentAutomation, err := cicd.NewDeploymentAutomation(config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize deployment automation: %w", err)
 	}
@@ -346,7 +350,7 @@ func (s *Server) executePipeline(pipeline *Pipeline, commitHash string) error {
 		Image:     pipeline.ImageName,
 		Tag:       commitHash[:8],
 		EnvVars:   pipeline.EnvVars,
-		ExposeRoute: true,
+		ExposeIngress: true,
 	}
 
 	fmt.Printf("Deploying application for pipeline %s...\n", pipeline.Name)
@@ -365,42 +369,41 @@ func (s *Server) executePipeline(pipeline *Pipeline, commitHash string) error {
 
 func (s *Server) gitAddRepository(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	if err := s.initCicdManager(); err != nil {
-		return mcp.NewToolResultError("failed to initialize CI/CD manager", err), nil
+		return NewTextResult("", fmt.Errorf("failed to initialize CI/CD manager: %v", err)), nil
 	}
 
-	var args struct {
-		URL      string `json:"url"`
-		Branch   string `json:"branch"`
-		Username string `json:"username"`
-		Token    string `json:"token"`
+	args := request.GetArguments()
+	url, ok := args["url"].(string)
+	if !ok || url == "" {
+		return NewTextResult("", fmt.Errorf("url parameter is required")), nil
 	}
 
-	if err := mcp.UnmarshalArguments(request.Params.Arguments, &args); err != nil {
-		return mcp.NewToolResultError("invalid arguments", err), nil
+	branch, _ := args["branch"].(string)
+	if branch == "" {
+		branch = "main"
 	}
 
-	if args.Branch == "" {
-		args.Branch = "main"
-	}
+	username, _ := args["username"].(string)
+	token, _ := args["token"].(string)
 
 	var credentials *http.BasicAuth
-	if args.Username != "" && args.Token != "" {
+	if username != "" && token != "" {
 		credentials = &http.BasicAuth{
-			Username: args.Username,
-			Password: args.Token,
+			Username: username,
+			Password: token,
 		}
 	}
 
-	err := s.cicdManager.gitWatcher.AddRepository(args.URL, args.Branch, credentials)
+	err := s.cicdManager.gitWatcher.AddRepository(url, branch, credentials)
 	if err != nil {
-		return mcp.NewToolResultError("failed to add repository", err), nil
+		return NewTextResult("", fmt.Errorf("failed to add repository: %v", err)), nil
 	}
 
 	result := map[string]interface{}{
 		"status":     "success",
-		"message":    fmt.Sprintf("Repository %s (branch: %s) added for monitoring", args.URL, args.Branch),
-		"repository": args.URL,
-		"branch":     args.Branch,
+		"message":    fmt.Sprintf("Repository %s (branch: %s) added for monitoring", url, branch),
+		"repository": url,
+		"branch":     branch,
 	}
 
 	return mcp.NewToolResultText(output.FormatOutput(result, s.configuration.ListOutput)), nil

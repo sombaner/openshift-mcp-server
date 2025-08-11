@@ -7,22 +7,17 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
-	imagev1 "github.com/openshift/api/image/v1"
-	imageclientv1 "github.com/openshift/client-go/image/clientset/versioned/typed/image/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 )
 
 type RegistryPusher struct {
 	dockerClient    *client.Client
-	openshiftConfig *rest.Config
-	imageClient     imageclientv1.ImageV1Interface
+	kubeConfig      *rest.Config
 	registries      map[string]*RegistryConfig
 }
 
@@ -56,28 +51,17 @@ type PushResult struct {
 	Digest        string
 }
 
-func NewRegistryPusher(openshiftConfig *rest.Config) (*RegistryPusher, error) {
+func NewRegistryPusher(kubeConfig *rest.Config) (*RegistryPusher, error) {
 	// Initialize Docker client
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		log.Printf("Warning: Failed to initialize Docker client: %v", err)
 	}
 
-	var imageClient imageclientv1.ImageV1Interface
-	if openshiftConfig != nil {
-		// Initialize OpenShift image client
-		imageClientset, err := imageclientv1.NewForConfig(openshiftConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create OpenShift image client: %w", err)
-		}
-		imageClient = imageClientset
-	}
-
 	return &RegistryPusher{
-		dockerClient:    dockerClient,
-		openshiftConfig: openshiftConfig,
-		imageClient:     imageClient,
-		registries:      make(map[string]*RegistryConfig),
+		dockerClient: dockerClient,
+		kubeConfig:   kubeConfig,
+		registries:   make(map[string]*RegistryConfig),
 	}, nil
 }
 
@@ -110,19 +94,14 @@ func (rp *RegistryPusher) PushImage(ctx context.Context, config PushConfig) (*Pu
 		}
 	}
 
-	// Use OpenShift ImageStream if available
-	if rp.imageClient != nil && config.Namespace != "" {
-		return rp.pushWithOpenShift(ctx, config, registryConfig, startTime)
-	}
-
-	// Fall back to Docker
+	// Use Docker for pushing
 	if rp.dockerClient != nil {
 		return rp.pushWithDocker(ctx, config, registryConfig, startTime)
 	}
 
 	return &PushResult{
 		Success:  false,
-		Error:    fmt.Errorf("no push client available"),
+		Error:    fmt.Errorf("no Docker client available"),
 		PushTime: time.Since(startTime),
 	}, nil
 }
@@ -144,9 +123,9 @@ func (rp *RegistryPusher) pushWithDocker(ctx context.Context, config PushConfig,
 	}
 
 	// Prepare authentication
-	var authConfig types.AuthConfig
+	var authConfig registry.AuthConfig
 	if registryConfig != nil {
-		authConfig = types.AuthConfig{
+		authConfig = registry.AuthConfig{
 			Username: registryConfig.Username,
 			Password: registryConfig.Password,
 			Email:    registryConfig.Email,
@@ -165,7 +144,7 @@ func (rp *RegistryPusher) pushWithDocker(ctx context.Context, config PushConfig,
 	authStr := base64.URLEncoding.EncodeToString(authConfigBytes)
 
 	// Push the image
-	pushResponse, err := rp.dockerClient.ImagePush(ctx, targetImage, types.ImagePushOptions{
+	pushResponse, err := rp.dockerClient.ImagePush(ctx, targetImage, image.PushOptions{
 		RegistryAuth: authStr,
 	})
 	if err != nil {
@@ -194,76 +173,7 @@ func (rp *RegistryPusher) pushWithDocker(ctx context.Context, config PushConfig,
 	}, nil
 }
 
-func (rp *RegistryPusher) pushWithOpenShift(ctx context.Context, config PushConfig, registryConfig *RegistryConfig, startTime time.Time) (*PushResult, error) {
-	// Create or update ImageStream for external registry
-	imageStreamName := strings.Split(config.TargetImage, "/")[len(strings.Split(config.TargetImage, "/"))-1]
-	
-	imageStream := &imagev1.ImageStream{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        imageStreamName,
-			Namespace:   config.Namespace,
-			Labels:      config.Labels,
-			Annotations: config.Annotations,
-		},
-		Spec: imagev1.ImageStreamSpec{
-			Tags: []imagev1.TagReference{
-				{
-					Name: config.TargetTag,
-					From: &corev1.ObjectReference{
-						Kind: "DockerImage",
-						Name: fmt.Sprintf("%s:%s", config.TargetImage, config.TargetTag),
-					},
-					ImportPolicy: imagev1.TagImportPolicy{
-						Scheduled: true,
-					},
-				},
-			},
-		},
-	}
 
-	// Create or update the ImageStream
-	existingIS, err := rp.imageClient.ImageStreams(config.Namespace).Get(ctx, imageStreamName, metav1.GetOptions{})
-	if err != nil {
-		// Create new ImageStream
-		_, err = rp.imageClient.ImageStreams(config.Namespace).Create(ctx, imageStream, metav1.CreateOptions{})
-		if err != nil {
-			return &PushResult{
-				Success:   false,
-				Error:     fmt.Errorf("failed to create ImageStream: %w", err),
-				PushTime:  time.Since(startTime),
-			}, nil
-		}
-	} else {
-		// Update existing ImageStream
-		existingIS.Spec = imageStream.Spec
-		existingIS.Labels = config.Labels
-		existingIS.Annotations = config.Annotations
-		_, err = rp.imageClient.ImageStreams(config.Namespace).Update(ctx, existingIS, metav1.UpdateOptions{})
-		if err != nil {
-			return &PushResult{
-				Success:   false,
-				Error:     fmt.Errorf("failed to update ImageStream: %w", err),
-				PushTime:  time.Since(startTime),
-			}, nil
-		}
-	}
-
-	// Tag the source image to point to the external registry
-	// This would typically be done through OpenShift's image import mechanism
-	// For now, we'll simulate a successful push
-
-	targetImage := fmt.Sprintf("%s:%s", config.TargetImage, config.TargetTag)
-
-	return &PushResult{
-		SourceImage:   config.SourceImage,
-		TargetImage:   config.TargetImage,
-		FullImageName: targetImage,
-		PushTime:      time.Since(startTime),
-		PushLogs:      fmt.Sprintf("Successfully configured ImageStream %s to reference %s", imageStreamName, targetImage),
-		Success:       true,
-		Error:         nil,
-	}, nil
-}
 
 func (rp *RegistryPusher) ListRepositories(ctx context.Context, registryName string) ([]string, error) {
 	registryConfig, exists := rp.registries[registryName]

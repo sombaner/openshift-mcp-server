@@ -1,5 +1,8 @@
 # Multi-stage Dockerfile for OpenShift AI MCP Server with Inference
-FROM golang:1.24-alpine AS go-builder
+FROM --platform=linux/amd64 golang:1.24-alpine AS go-builder
+
+# Install git (required for Go modules with GitHub dependencies)
+RUN apk add --no-cache git ca-certificates
 
 WORKDIR /src
 
@@ -14,7 +17,7 @@ COPY pkg/ ./pkg/
 # Build the integrated Go server
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o integrated-server ./cmd/integrated-server
 
-FROM python:3.11-slim
+FROM --platform=linux/amd64 python:3.11-slim
 
 WORKDIR /app
 
