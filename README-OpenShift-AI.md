@@ -36,7 +36,7 @@ A comprehensive Model Context Protocol (MCP) server that runs on OpenShift AI, p
 
 ```bash
 # Clone the repository
-git clone https://github.com/manusa/kubernetes-mcp-server.git
+git clone https://github.com/sur309/openshift-mcp-server.git
 cd kubernetes-mcp-server
 
 # Create namespace and apply manifests
