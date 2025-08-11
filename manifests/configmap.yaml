@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-server-config
+  namespace: openshift-ai-mcp
+  labels:
+    app.kubernetes.io/name: openshift-ai-mcp-server
+    app.kubernetes.io/component: config
+data:
+  config.toml: |
+    [server]
+    port = "8080"
+    log_level = 2
+    profile = "cicd"
+    read_only = false
+    
+    [inference]
+    models_path = "/app/models"
+    default_model = "default"
+    max_batch_size = 32
+    
+    [cicd]
+    default_registry = "quay.io"
+    default_namespace = "openshift-ai-mcp"
+    build_timeout = "600s"
+    deploy_timeout = "300s"
+    
+    [git]
+    poll_interval = "30s"
+    webhook_secret = "webhook-secret"
+    
+  app.py: |
+    # Application configuration
+    import os
+    
+    # Server configuration
+    PORT = int(os.environ.get("PORT", 8080))
+    HOST = os.environ.get("HOST", "0.0.0.0")
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    
+    # Kubernetes configuration
+    KUBECONFIG_PATH = os.environ.get("KUBECONFIG", "/var/run/secrets/kubernetes.io/serviceaccount")
+    NAMESPACE = os.environ.get("NAMESPACE", "openshift-ai-mcp")
+    
+    # CI/CD configuration
+    DEFAULT_REGISTRY = os.environ.get("DEFAULT_REGISTRY", "quay.io")
+    REGISTRY_USERNAME = os.environ.get("REGISTRY_USERNAME", "")
+    REGISTRY_PASSWORD = os.environ.get("REGISTRY_PASSWORD", "")
+    
+    # Git configuration
+    GIT_POLL_INTERVAL = int(os.environ.get("GIT_POLL_INTERVAL", 30))
+    WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "default-webhook-secret")

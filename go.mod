@@ -5,9 +5,13 @@ go 1.24.1
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/coreos/go-oidc/v3 v3.14.1
+	github.com/docker/docker v27.3.1+incompatible
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/go-git/go-git/v5 v5.12.0
 	github.com/go-jose/go-jose/v4 v4.0.5
 	github.com/mark3labs/mcp-go v0.34.0
+	github.com/openshift/api v0.0.0-20241018181355-bdaeccd88fb0
+	github.com/openshift/client-go v0.0.0-20241018181355-7cd80e3ff3a8
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/afero v1.14.0
 	github.com/spf13/cobra v1.9.1

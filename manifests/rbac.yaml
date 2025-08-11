@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openshift-ai-mcp-server
+  namespace: openshift-ai-mcp
+  labels:
+    app.kubernetes.io/name: openshift-ai-mcp-server
+    app.kubernetes.io/component: service-account
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: openshift-ai-mcp-server
+  labels:
+    app.kubernetes.io/name: openshift-ai-mcp-server
+    app.kubernetes.io/component: rbac
+rules:
+# Core Kubernetes resources
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "persistentvolumeclaims", "events", "configmaps", "secrets", "namespaces"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods/log", "pods/exec", "pods/portforward"]
+  verbs: ["get", "list", "create"]
+
+# Apps resources
+- apiGroups: ["apps"]
+  resources: ["deployments", "daemonsets", "replicasets", "statefulsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Extensions
+- apiGroups: ["extensions"]
+  resources: ["deployments", "daemonsets", "replicasets", "ingresses"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Networking
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses", "networkpolicies"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# RBAC
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Custom Resource Definitions
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["get", "list", "watch"]
+
+# OpenShift specific resources
+- apiGroups: ["project.openshift.io"]
+  resources: ["projects"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+- apiGroups: ["route.openshift.io"]
+  resources: ["routes"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+- apiGroups: ["image.openshift.io"]
+  resources: ["images", "imagestreams", "imagestreamtags"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+- apiGroups: ["build.openshift.io"]
+  resources: ["builds", "buildconfigs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+- apiGroups: ["apps.openshift.io"]
+  resources: ["deploymentconfigs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Tekton Pipelines (for CI/CD)
+- apiGroups: ["tekton.dev"]
+  resources: ["tasks", "taskruns", "pipelines", "pipelineruns", "pipelineresources"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Operators
+- apiGroups: ["operators.coreos.com"]
+  resources: ["subscriptions", "installplans", "clusterserviceversions"]
+  verbs: ["get", "list", "watch"]
+
+# Monitoring
+- apiGroups: ["monitoring.coreos.com"]
+  resources: ["servicemonitors", "prometheusrules"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Helm resources
+- apiGroups: ["helm.cattle.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openshift-ai-mcp-server
+  labels:
+    app.kubernetes.io/name: openshift-ai-mcp-server
+    app.kubernetes.io/component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: openshift-ai-mcp-server
+subjects:
+- kind: ServiceAccount
+  name: openshift-ai-mcp-server
+  namespace: openshift-ai-mcp

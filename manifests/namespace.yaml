@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-ai-mcp
+  labels:
+    name: openshift-ai-mcp
+    app.kubernetes.io/name: openshift-ai-mcp-server
+    app.kubernetes.io/component: ai-inference
+  annotations:
+    openshift.io/description: "OpenShift AI MCP Server with CI/CD automation"
+    openshift.io/display-name: "OpenShift AI MCP Server"

@@ -45,6 +45,7 @@ type Server struct {
 	configuration *Configuration
 	server        *server.MCPServer
 	k             *internalk8s.Manager
+	cicdManager   *CicdManager
 }
 
 func NewServer(configuration Configuration) (*Server, error) {

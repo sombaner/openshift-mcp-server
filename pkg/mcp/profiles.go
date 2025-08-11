@@ -14,6 +14,7 @@ type Profile interface {
 
 var Profiles = []Profile{
 	&FullProfile{},
+	&CicdProfile{},
 }
 
 var ProfileNames []string
@@ -43,6 +44,25 @@ func (p *FullProfile) GetTools(s *Server) []server.ServerTool {
 		s.initPods(),
 		s.initResources(),
 		s.initHelm(),
+		s.initCicd(),
+	)
+}
+
+type CicdProfile struct{}
+
+func (p *CicdProfile) GetName() string {
+	return "cicd"
+}
+func (p *CicdProfile) GetDescription() string {
+	return "CI/CD profile with Git monitoring, image building, registry management, and automated deployment tools"
+}
+func (p *CicdProfile) GetTools(s *Server) []server.ServerTool {
+	return slices.Concat(
+		s.initConfiguration(),
+		s.initNamespaces(),
+		s.initPods(),
+		s.initResources(),
+		s.initCicd(),
 	)
 }
 

@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: openshift-ai-mcp-server
+  namespace: openshift-ai-mcp
+  labels:
+    app.kubernetes.io/name: openshift-ai-mcp-server
+    app.kubernetes.io/component: service
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: openshift-ai-mcp-server-tls
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+    protocol: TCP
+  - name: mcp
+    port: 8081
+    targetPort: mcp
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: openshift-ai-mcp-server
+    app.kubernetes.io/component: server
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: openshift-ai-mcp-server
+  namespace: openshift-ai-mcp
+  labels:
+    app.kubernetes.io/name: openshift-ai-mcp-server
+    app.kubernetes.io/component: route
+  annotations:
+    haproxy.router.openshift.io/timeout: 300s
+spec:
+  to:
+    kind: Service
+    name: openshift-ai-mcp-server
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: openshift-ai-mcp-server-mcp
+  namespace: openshift-ai-mcp
+  labels:
+    app.kubernetes.io/name: openshift-ai-mcp-server
+    app.kubernetes.io/component: mcp-route
+  annotations:
+    haproxy.router.openshift.io/timeout: 300s
+spec:
+  to:
+    kind: Service
+    name: openshift-ai-mcp-server
+    weight: 100
+  port:
+    targetPort: mcp
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
