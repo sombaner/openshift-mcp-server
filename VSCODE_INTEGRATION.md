@@ -32,11 +32,11 @@ VS Code + Copilot → MCP Client → OpenShift AI MCP Server → OpenShift/K8s A
 After deployment, get the MCP server URL:
 ```bash
 # Get MCP endpoint URL
-MCP_URL=$(oc get route openshift-ai-mcp-server-mcp -o jsonpath='{.spec.host}')
+MCP_URL=$(oc get route ai-mcp-openshift-server-mcp -o jsonpath='{.spec.host}')
 echo "MCP Server URL: https://$MCP_URL"
 
 # Get inference endpoint URL  
-INFERENCE_URL=$(oc get route openshift-ai-mcp-server -o jsonpath='{.spec.host}')
+INFERENCE_URL=$(oc get route ai-mcp-openshift-server -o jsonpath='{.spec.host}')
 echo "Inference URL: https://$INFERENCE_URL"
 ```
 
@@ -100,13 +100,13 @@ Create `.vscode/settings.json`:
 Create OpenShift service account token:
 ```bash
 # Create service account for VS Code
-oc create sa vscode-mcp-client -n openshift-ai-mcp
+oc create sa vscode-mcp-client -n ai-mcp-openshift
 
 # Create token
-oc create token vscode-mcp-client -n openshift-ai-mcp --duration=8760h
+oc create token vscode-mcp-client -n ai-mcp-openshift --duration=8760h
 
 # Grant necessary permissions
-oc adm policy add-role-to-user edit system:serviceaccount:openshift-ai-mcp:vscode-mcp-client -n openshift-ai-mcp
+oc adm policy add-role-to-user edit system:serviceaccount:ai-mcp-openshift:vscode-mcp-client -n ai-mcp-openshift
 ```
 
 Set environment variable:
@@ -311,7 +311,7 @@ curl -k -H "Authorization: Bearer $OPENSHIFT_TOKEN" \
 
 ### Pipeline Failures
 
-1. **Check MCP server logs**: `oc logs -l app.kubernetes.io/name=openshift-ai-mcp-server`
+1. **Check MCP server logs**: `oc logs -l app.kubernetes.io/name=ai-mcp-openshift-server`
 2. **Verify RBAC**: Ensure service account has necessary permissions
 3. **Network connectivity**: Test from within cluster
 

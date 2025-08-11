@@ -56,33 +56,33 @@ oc create secret generic registry-credentials \
   --from-literal=username=YOUR_REGISTRY_USERNAME \
   --from-literal=password=YOUR_REGISTRY_TOKEN \
   --from-literal=email=YOUR_EMAIL \
-  -n openshift-ai-mcp
+  -n ai-mcp-openshift
 
 # Set up Git credentials
 oc create secret generic git-credentials \
   --from-literal=username=YOUR_GIT_USERNAME \
   --from-literal=token=YOUR_GIT_TOKEN \
-  -n openshift-ai-mcp
+  -n ai-mcp-openshift
 
 # Set up webhook secret
 oc create secret generic webhook-secret \
   --from-literal=secret=YOUR_WEBHOOK_SECRET \
-  -n openshift-ai-mcp
+  -n ai-mcp-openshift
 ```
 
 ### 3. Build and Push Container Image
 
 ```bash
 # Build the container image
-docker build -t quay.io/YOUR_ORG/openshift-ai-mcp-server:latest .
+docker build -t quay.io/YOUR_ORG/ai-mcp-openshift-server:latest .
 
 # Push to registry
-docker push quay.io/YOUR_ORG/openshift-ai-mcp-server:latest
+docker push quay.io/YOUR_ORG/ai-mcp-openshift-server:latest
 
 # Update deployment image
-oc set image deployment/openshift-ai-mcp-server \
-  inference-server=quay.io/YOUR_ORG/openshift-ai-mcp-server:latest \
-  -n openshift-ai-mcp
+oc set image deployment/ai-mcp-openshift-server \
+  inference-server=quay.io/YOUR_ORG/ai-mcp-openshift-server:latest \
+  -n ai-mcp-openshift
 ```
 
 ## 🔧 Configuration
@@ -96,7 +96,7 @@ oc set image deployment/openshift-ai-mcp-server \
 | `MCP_PROFILE` | MCP profile to use | `cicd` |
 | `LOG_LEVEL` | Logging verbosity (0-9) | `2` |
 | `DEFAULT_REGISTRY` | Default container registry | `quay.io` |
-| `DEFAULT_NAMESPACE` | Default deployment namespace | `openshift-ai-mcp` |
+| `DEFAULT_NAMESPACE` | Default deployment namespace | `ai-mcp-openshift` |
 | `MODELS_PATH` | Path to ML models | `/app/models` |
 
 ### MCP Profiles
@@ -256,19 +256,19 @@ curl http://localhost:8080/models
 1. **Build Failures**
    ```bash
    # Check build logs
-   oc logs deployment/openshift-ai-mcp-server -n openshift-ai-mcp
+   oc logs deployment/ai-mcp-openshift-server -n ai-mcp-openshift
    ```
 
 2. **Registry Access Issues**
    ```bash
    # Verify registry credentials
-   oc get secret registry-credentials -o yaml -n openshift-ai-mcp
+   oc get secret registry-credentials -o yaml -n ai-mcp-openshift
    ```
 
 3. **Git Authentication**
    ```bash
    # Check Git credentials
-   oc get secret git-credentials -o yaml -n openshift-ai-mcp
+   oc get secret git-credentials -o yaml -n ai-mcp-openshift
    ```
 
 ### Debug Commands
@@ -282,10 +282,10 @@ curl http://localhost:8081/health/mcp
 curl http://localhost:8081/mcp/tools
 
 # View server logs
-oc logs -f deployment/openshift-ai-mcp-server -n openshift-ai-mcp
+oc logs -f deployment/ai-mcp-openshift-server -n ai-mcp-openshift
 
 # Check resource usage
-oc top pods -n openshift-ai-mcp
+oc top pods -n ai-mcp-openshift
 ```
 
 ## 🤝 Contributing

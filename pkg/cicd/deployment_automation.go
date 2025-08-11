@@ -90,7 +90,7 @@ func NewDeploymentAutomation(kubeConfig *rest.Config) (*DeploymentAutomation, er
 			},
 		},
 		DefaultLabels: map[string]string{
-			"app.kubernetes.io/managed-by": "openshift-ai-mcp-server",
+			"app.kubernetes.io/managed-by": "ai-mcp-openshift-server",
 		},
 		DefaultEnvVars: map[string]string{
 			"PORT": "8080",
@@ -230,7 +230,7 @@ func (da *DeploymentAutomation) ensureNamespace(ctx context.Context, namespace s
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespace,
 				Labels: map[string]string{
-					"app.kubernetes.io/managed-by": "openshift-ai-mcp-server",
+					"app.kubernetes.io/managed-by": "ai-mcp-openshift-server",
 				},
 			},
 		}
@@ -501,7 +501,7 @@ func (da *DeploymentAutomation) DeleteApplication(ctx context.Context, namespace
 
 func (da *DeploymentAutomation) ListApplications(ctx context.Context, namespace string) ([]ApplicationInfo, error) {
 	deployments, err := da.kubeClient.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/managed-by=openshift-ai-mcp-server",
+		LabelSelector: "app.kubernetes.io/managed-by=ai-mcp-openshift-server",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployments: %w", err)

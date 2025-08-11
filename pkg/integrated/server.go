@@ -127,7 +127,7 @@ func DefaultConfig() *IntegratedConfig {
 		InferencePort:    8080,
 		ModelsPath:       "/app/models",
 		DefaultRegistry:  "quay.io",
-		DefaultNamespace: "openshift-ai-mcp",
+		DefaultNamespace: "ai-mcp-openshift",
 		LogLevel:         2,
 		KubeConfig:       "",
 	}

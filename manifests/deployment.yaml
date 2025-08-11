@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: openshift-ai-mcp-server
-  namespace: openshift-ai-mcp
+  namespace: ai-mcp-openshift
   labels:
     app.kubernetes.io/name: openshift-ai-mcp-server
     app.kubernetes.io/component: server
@@ -25,7 +25,7 @@ spec:
         prometheus.io/port: "8080"
         prometheus.io/path: "/metrics"
     spec:
-      serviceAccountName: openshift-ai-mcp-server
+      serviceAccountName: ai-mcp-openshift-server
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

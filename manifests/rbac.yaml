@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: openshift-ai-mcp-server
-  namespace: openshift-ai-mcp
+  namespace: ai-mcp-openshift
   labels:
     app.kubernetes.io/name: openshift-ai-mcp-server
     app.kubernetes.io/component: service-account
@@ -105,4 +105,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: openshift-ai-mcp-server
-  namespace: openshift-ai-mcp
+  namespace: ai-mcp-openshift

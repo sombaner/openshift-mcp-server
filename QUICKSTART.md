@@ -22,7 +22,7 @@ Deploy a **270MB optimized container** on OpenShift for **automated CI/CD** that
 oc login --server=https://your-cluster-url
 
 # 2. Create project
-oc new-project openshift-ai-mcp
+oc new-project ai-mcp-openshift
 
 # 3. Deploy
 oc apply -f manifests/configmap.yaml
@@ -40,8 +40,8 @@ oc get route
 ### 1. Get Your URLs
 ```bash
 # After deployment, get the URLs:
-INFERENCE_URL=$(oc get route openshift-ai-mcp-server -o jsonpath='{.spec.host}')
-MCP_URL=$(oc get route openshift-ai-mcp-server-mcp -o jsonpath='{.spec.host}')
+INFERENCE_URL=$(oc get route ai-mcp-openshift-server -o jsonpath='{.spec.host}')
+MCP_URL=$(oc get route ai-mcp-openshift-server-mcp -o jsonpath='{.spec.host}')
 
 echo "Inference: https://$INFERENCE_URL"
 echo "MCP: https://$MCP_URL"
@@ -57,8 +57,8 @@ with your actual MCP URL.
 ### 3. Set OpenShift Token
 ```bash
 # Get service account token
-oc create sa vscode-mcp-client -n openshift-ai-mcp
-oc create token vscode-mcp-client -n openshift-ai-mcp --duration=8760h
+oc create sa vscode-mcp-client -n ai-mcp-openshift
+oc create token vscode-mcp-client -n ai-mcp-openshift --duration=8760h
 
 # Set environment variable
 export OPENSHIFT_TOKEN="your-token-here"
@@ -144,7 +144,7 @@ graph LR
 ### Deployment Issues
 ```bash
 # Check pod logs
-oc logs -l app.kubernetes.io/name=openshift-ai-mcp-server
+oc logs -l app.kubernetes.io/name=ai-mcp-openshift-server
 
 # Check pod status
 oc get pods
@@ -161,7 +161,7 @@ oc get events --sort-by=.metadata.creationTimestamp
 ### Connection Issues
 ```bash
 # Test from within cluster
-oc exec -it deployment/openshift-ai-mcp-server -- curl localhost:8080/health
+oc exec -it deployment/ai-mcp-openshift-server -- curl localhost:8080/health
 ```
 
 ## ✅ Success Verification
@@ -176,7 +176,7 @@ After deployment, you should see:
 ## 🎯 Next Steps
 
 1. **Test automatic deployment**: Commit code and watch Copilot
-2. **Scale if needed**: `oc scale deployment openshift-ai-mcp-server --replicas=3`
+2. **Scale if needed**: `oc scale deployment ai-mcp-openshift-server --replicas=3`
 3. **Add monitoring**: Configure Prometheus/Grafana dashboards
 4. **Custom tools**: Extend MCP server with project-specific tools
 

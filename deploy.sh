@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-NAMESPACE="openshift-ai-mcp"
+NAMESPACE="ai-mcp-openshift"
 IMAGE="quay.io/sureshgaikwad/openshift-mcp-server:v4"
 
 echo -e "${BLUE}🚀 Deploying OpenShift AI MCP Server${NC}"

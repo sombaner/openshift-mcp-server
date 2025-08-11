@@ -49,7 +49,7 @@ ENV INFERENCE_PORT=8080
 ENV MCP_PROFILE=cicd
 ENV LOG_LEVEL=2
 ENV DEFAULT_REGISTRY=quay.io
-ENV DEFAULT_NAMESPACE=openshift-ai-mcp
+ENV DEFAULT_NAMESPACE=ai-mcp-openshift
 
 # Create non-root user
 RUN addgroup -S appuser && adduser -S appuser -G appuser

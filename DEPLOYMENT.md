@@ -18,10 +18,10 @@ Deploy the optimized 270MB OpenShift AI MCP Server for CI/CD automation and VS C
 
 ### 1. Create Project/Namespace
 ```bash
-oc new-project openshift-ai-mcp
+oc new-project ai-mcp-openshift
 # or
-oc create namespace openshift-ai-mcp
-oc project openshift-ai-mcp
+oc create namespace ai-mcp-openshift
+oc project ai-mcp-openshift
 ```
 
 ### 2. Apply Manifests
@@ -38,26 +38,26 @@ oc apply -f manifests/service.yaml
 ### 3. Verify Deployment
 ```bash
 # Check pod status
-oc get pods -l app.kubernetes.io/name=openshift-ai-mcp-server
+oc get pods -l app.kubernetes.io/name=ai-mcp-openshift-server
 
 # Check services
-oc get svc openshift-ai-mcp-server
+oc get svc ai-mcp-openshift-server
 
 # Check routes
 oc get route
 
 # View logs
-oc logs -l app.kubernetes.io/name=openshift-ai-mcp-server -f
+oc logs -l app.kubernetes.io/name=ai-mcp-openshift-server -f
 ```
 
 ### 4. Get External URLs
 ```bash
 # Inference endpoint
-INFERENCE_URL=$(oc get route openshift-ai-mcp-server -o jsonpath='{.spec.host}')
+INFERENCE_URL=$(oc get route ai-mcp-openshift-server -o jsonpath='{.spec.host}')
 echo "Inference URL: https://$INFERENCE_URL"
 
 # MCP endpoint
-MCP_URL=$(oc get route openshift-ai-mcp-server-mcp -o jsonpath='{.spec.host}')
+MCP_URL=$(oc get route ai-mcp-openshift-server-mcp -o jsonpath='{.spec.host}')
 echo "MCP URL: https://$MCP_URL"
 ```
 
@@ -101,7 +101,7 @@ resources:
 #### Pod CrashLoopBackOff
 ```bash
 # Check logs
-oc logs -l app.kubernetes.io/name=openshift-ai-mcp-server --previous
+oc logs -l app.kubernetes.io/name=ai-mcp-openshift-server --previous
 
 # Check events
 oc get events --sort-by=.metadata.creationTimestamp
@@ -119,7 +119,7 @@ oc get secrets
 #### Service Unavailable
 ```bash
 # Check service endpoints
-oc get endpoints openshift-ai-mcp-server
+oc get endpoints ai-mcp-openshift-server
 
 # Verify pod labels match service selector
 oc get pods --show-labels
@@ -128,10 +128,10 @@ oc get pods --show-labels
 ### Health Checks
 ```bash
 # Pod health
-oc exec -it deployment/openshift-ai-mcp-server -- curl localhost:8080/health
+oc exec -it deployment/ai-mcp-openshift-server -- curl localhost:8080/health
 
 # Service health
-oc exec -it deployment/openshift-ai-mcp-server -- curl localhost:8081/health/mcp
+oc exec -it deployment/ai-mcp-openshift-server -- curl localhost:8081/health/mcp
 ```
 
 ## Scaling
@@ -139,19 +139,19 @@ oc exec -it deployment/openshift-ai-mcp-server -- curl localhost:8081/health/mcp
 ### Horizontal Scaling
 ```bash
 # Scale up for high availability
-oc scale deployment openshift-ai-mcp-server --replicas=3
+oc scale deployment ai-mcp-openshift-server --replicas=3
 
 # Auto-scaling (if HPA is available)
-oc autoscale deployment openshift-ai-mcp-server --min=1 --max=5 --cpu-percent=70
+oc autoscale deployment ai-mcp-openshift-server --min=1 --max=5 --cpu-percent=70
 ```
 
 ### Resource Tuning
 ```bash
 # Monitor resource usage
-oc top pods -l app.kubernetes.io/name=openshift-ai-mcp-server
+oc top pods -l app.kubernetes.io/name=ai-mcp-openshift-server
 
 # Adjust resources if needed
-oc patch deployment openshift-ai-mcp-server -p '{
+oc patch deployment ai-mcp-openshift-server -p '{
   "spec": {
     "template": {
       "spec": {
@@ -184,12 +184,12 @@ oc apply -f - <<EOF
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: openshift-ai-mcp-server-netpol
-  namespace: openshift-ai-mcp
+  name: ai-mcp-openshift-server-netpol
+  namespace: ai-mcp-openshift
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: openshift-ai-mcp-server
+      app.kubernetes.io/name: ai-mcp-openshift-server
   policyTypes:
   - Ingress
   - Egress
@@ -230,11 +230,11 @@ curl -k https://$INFERENCE_URL/metrics
 oc delete -f manifests/
 
 # Delete project (if dedicated)
-oc delete project openshift-ai-mcp
+oc delete project ai-mcp-openshift
 ```
 
 ### Verify Cleanup
 ```bash
 # Check no resources remain
-oc get all -n openshift-ai-mcp
+oc get all -n ai-mcp-openshift
 ```

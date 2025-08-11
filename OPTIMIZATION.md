@@ -124,10 +124,10 @@ If full ML capabilities are needed later:
 
 ```bash
 # Check image size
-podman images | grep openshift-ai-mcp-server
+podman images | grep ai-mcp-openshift-server
 
 # Test container locally  
-podman run -p 8080:8080 -p 8081:8081 openshift-ai-mcp-server:minimal
+podman run -p 8080:8080 -p 8081:8081 ai-mcp-openshift-server:minimal
 
 # Verify endpoints
 curl http://localhost:8080/health

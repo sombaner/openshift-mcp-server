@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mcp-server-config
-  namespace: openshift-ai-mcp
+  namespace: ai-mcp-openshift
   labels:
     app.kubernetes.io/name: openshift-ai-mcp-server
     app.kubernetes.io/component: config
@@ -21,7 +21,7 @@ data:
     
     [cicd]
     default_registry = "quay.io"
-    default_namespace = "openshift-ai-mcp"
+    default_namespace = "ai-mcp-openshift"
     build_timeout = "600s"
     deploy_timeout = "300s"
     
@@ -40,7 +40,7 @@ data:
     
     # Kubernetes configuration
     KUBECONFIG_PATH = os.environ.get("KUBECONFIG", "/var/run/secrets/kubernetes.io/serviceaccount")
-    NAMESPACE = os.environ.get("NAMESPACE", "openshift-ai-mcp")
+    NAMESPACE = os.environ.get("NAMESPACE", "ai-mcp-openshift")
     
     # CI/CD configuration
     DEFAULT_REGISTRY = os.environ.get("DEFAULT_REGISTRY", "quay.io")
