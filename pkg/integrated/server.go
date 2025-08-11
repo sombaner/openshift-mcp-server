@@ -2,7 +2,9 @@ package integrated
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -66,10 +68,42 @@ func NewIntegratedServer(config *IntegratedConfig) (*IntegratedServer, error) {
 
 	// Create HTTP server for MCP
 	httpMux := http.NewServeMux()
-	httpMux.HandleFunc("/health/mcp", func(w http.ResponseWriter, r *http.Request) {
+
+	// Add MCP health endpoint
+	httpMux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"healthy","service":"mcp-server"}`))
+	})
+
+	// Add MCP root endpoint with server info
+	httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			// Handle GET requests with server info
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			response := fmt.Sprintf(`{
+				"service": "OpenShift AI MCP Server",
+				"version": "1.0.0",
+				"protocol": "model-context-protocol",
+				"capabilities": [
+					"git_repository_management",
+					"container_image_building",
+					"deployment_automation",
+					"kubernetes_operations"
+				],
+				"endpoints": {
+					"health": "http://localhost:%d/health",
+					"jsonrpc": "http://localhost:%d/"
+				}
+			}`, config.MCPPort, config.MCPPort)
+			w.Write([]byte(response))
+		} else if r.Method == "POST" {
+			// Handle JSON-RPC MCP requests
+			handleMCPRequest(w, r, mcpServer)
+		} else {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
 	})
 
 	httpServer := &http.Server{
@@ -296,4 +330,112 @@ func LoadConfigFromEnv() *IntegratedConfig {
 	}
 
 	return config
+}
+
+// JSON-RPC request/response structures for MCP
+type JSONRPCRequest struct {
+	JSONRPC string      `json:"jsonrpc"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params,omitempty"`
+	ID      interface{} `json:"id"`
+}
+
+type JSONRPCResponse struct {
+	JSONRPC string      `json:"jsonrpc"`
+	Result  interface{} `json:"result,omitempty"`
+	Error   interface{} `json:"error,omitempty"`
+	ID      interface{} `json:"id"`
+}
+
+// Handle MCP JSON-RPC requests
+func handleMCPRequest(w http.ResponseWriter, r *http.Request, mcpServer *mcp.Server) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Read request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	// Parse JSON-RPC request
+	var req JSONRPCRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		response := JSONRPCResponse{
+			JSONRPC: "2.0",
+			Error:   map[string]interface{}{"code": -32700, "message": "Parse error"},
+			ID:      nil,
+		}
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Handle different MCP methods
+	var result interface{}
+	var responseError interface{}
+
+	switch req.Method {
+	case "initialize":
+		result = map[string]interface{}{
+			"protocolVersion": "2024-11-05",
+			"capabilities": map[string]interface{}{
+				"tools": map[string]interface{}{
+					"listChanged": false,
+				},
+			},
+			"serverInfo": map[string]interface{}{
+				"name":    "OpenShift AI MCP Server",
+				"version": "1.0.0",
+			},
+		}
+	case "tools/list":
+		// Return available tools from the MCP server
+		result = map[string]interface{}{
+			"tools": []map[string]interface{}{
+				{
+					"name":        "git_add_repository_simple",
+					"description": "Add a Git repository for CI/CD monitoring",
+					"inputSchema": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"url": map[string]interface{}{
+								"type":        "string",
+								"description": "Git repository URL",
+							},
+						},
+						"required": []string{"url"},
+					},
+				},
+				{
+					"name":        "git_list_repositories_simple",
+					"description": "List monitored Git repositories",
+					"inputSchema": map[string]interface{}{
+						"type":       "object",
+						"properties": map[string]interface{}{},
+					},
+				},
+			},
+		}
+	case "tools/call":
+		// Handle tool calls - this would integrate with the actual MCP server tools
+		responseError = map[string]interface{}{
+			"code":    -32601,
+			"message": "Tool execution not implemented in this simplified handler",
+		}
+	default:
+		responseError = map[string]interface{}{
+			"code":    -32601,
+			"message": "Method not found: " + req.Method,
+		}
+	}
+
+	// Send response
+	response := JSONRPCResponse{
+		JSONRPC: "2.0",
+		Result:  result,
+		Error:   responseError,
+		ID:      req.ID,
+	}
+
+	json.NewEncoder(w).Encode(response)
 }
