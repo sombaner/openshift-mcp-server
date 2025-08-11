@@ -5,10 +5,21 @@ metadata:
   namespace: ai-mcp-openshift
   labels:
     app.kubernetes.io/name: openshift-ai-mcp-server
+    app.kubernetes.io/component: server
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: kubectl
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openshift-ai-mcp-server
+      app.kubernetes.io/component: server
   template:
     metadata:
+      labels:
+        app.kubernetes.io/name: openshift-ai-mcp-server
+        app.kubernetes.io/component: server
+        app.kubernetes.io/version: "1.0.0"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
