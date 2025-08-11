@@ -25,15 +25,24 @@ spec:
         prometheus.io/port: "8080"
         prometheus.io/path: "/metrics"
     spec:
-      serviceAccountName: ai-mcp-openshift-server
+      serviceAccountName: openshift-ai-mcp-server
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: inference-server
         image: quay.io/sureshgaikwad/openshift-mcp-server:v4
         imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
         ports:
         - name: http
           containerPort: 8080
