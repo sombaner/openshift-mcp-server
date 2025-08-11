@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"os"
 
 	"github.com/manusa/kubernetes-mcp-server/pkg/integrated"
 )

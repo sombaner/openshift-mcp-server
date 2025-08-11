@@ -44,7 +44,7 @@ func (p *FullProfile) GetTools(s *Server) []server.ServerTool {
 		s.initPods(),
 		s.initResources(),
 		s.initHelm(),
-		s.initCicd(),
+		s.initCicdSimple(),
 	)
 }
 
@@ -62,7 +62,7 @@ func (p *CicdProfile) GetTools(s *Server) []server.ServerTool {
 		s.initNamespaces(),
 		s.initPods(),
 		s.initResources(),
-		s.initCicd(),
+		s.initCicdSimple(),
 	)
 }
 

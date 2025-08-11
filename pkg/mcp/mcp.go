@@ -3,9 +3,10 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"k8s.io/klog/v2"
 	"net/http"
 	"slices"
+
+	"k8s.io/klog/v2"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -45,7 +46,6 @@ type Server struct {
 	configuration *Configuration
 	server        *server.MCPServer
 	k             *internalk8s.Manager
-	cicdManager   *CicdManager
 }
 
 func NewServer(configuration Configuration) (*Server, error) {

@@ -32,7 +32,7 @@ spec:
         fsGroup: 1000
       containers:
       - name: inference-server
-        image: quay.io/openshift-ai/mcp-inference-server:latest
+        image: quay.io/sureshgaikwad/openshift-mcp-server:v4
         imagePullPolicy: Always
         ports:
         - name: http
@@ -47,7 +47,13 @@ spec:
         - name: HOST
           value: "0.0.0.0"
         - name: LOG_LEVEL
-          value: "INFO"
+          value: "2"
+        - name: MCP_PORT
+          value: "8081"
+        - name: INFERENCE_PORT
+          value: "8080"
+        - name: MCP_PROFILE
+          value: "cicd"
         - name: NAMESPACE
           valueFrom:
             fieldRef:
@@ -90,11 +96,11 @@ spec:
               optional: true
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "128Mi"
+            cpu: "100m"
           limits:
-            memory: "2Gi"
-            cpu: "1000m"
+            memory: "512Mi"
+            cpu: "500m"
         livenessProbe:
           httpGet:
             path: /health
@@ -127,7 +133,7 @@ spec:
           name: mcp-server-config
       - name: models-volume
         emptyDir:
-          sizeLimit: 10Gi
+          sizeLimit: 1Gi
       - name: tmp-volume
         emptyDir:
           sizeLimit: 1Gi
@@ -139,10 +145,7 @@ spec:
       terminationGracePeriodSeconds: 30
       nodeSelector:
         kubernetes.io/arch: amd64
-      tolerations:
-      - key: "nvidia.com/gpu"
-        operator: "Exists"
-        effect: "NoSchedule"
+      # GPU tolerations removed - optimized for CPU-only workloads
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

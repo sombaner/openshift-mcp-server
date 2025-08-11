@@ -1,0 +1,27 @@
+# Optimized requirements for smaller image size
+# Using CPU-only versions to avoid CUDA dependencies
+
+# Core web framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# CPU-only ML libraries (much smaller than GPU versions)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.1.1+cpu
+transformers==4.36.0
+numpy==1.24.3
+scikit-learn==1.3.2
+
+# Minimal additional dependencies
+pillow==10.1.0
+requests==2.31.0
+
+# Kubernetes and CI/CD - only essential ones
+kubernetes==28.1.0
+gitpython==3.1.40
+
+# Remove heavy/unnecessary dependencies:
+# - asyncio-mqtt (not used in simplified version)  
+# - openshift (using kubernetes client only)
+# - docker (we'll use simplified approach)

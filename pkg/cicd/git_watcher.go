@@ -21,11 +21,11 @@ type GitWatcher struct {
 }
 
 type Repository struct {
-	URL        string
-	Branch     string
-	LastCommit string
+	URL         string
+	Branch      string
+	LastCommit  string
 	Credentials *http.BasicAuth
-	LocalPath  string
+	LocalPath   string
 }
 
 type WebhookConfig struct {
@@ -57,7 +57,7 @@ func NewGitWatcher(pollInterval time.Duration) *GitWatcher {
 
 func (gw *GitWatcher) AddRepository(url, branch string, credentials *http.BasicAuth) error {
 	key := fmt.Sprintf("%s:%s", url, branch)
-	
+
 	// Clone repository to get initial commit
 	repo, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{
 		URL:      url,

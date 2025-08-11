@@ -1,7 +1,7 @@
-# Ultra-lightweight Dockerfile for ~100-200MB target
-# Focused on CI/CD capabilities without heavy ML dependencies
+# Optimized Dockerfile for smaller image size (~500MB target)
+# Multi-stage build with alpine images
 
-# Stage 1: Go builder
+# Stage 1: Go builder (minimal)
 FROM --platform=linux/amd64 golang:1.24-alpine AS go-builder
 RUN apk add --no-cache git ca-certificates
 WORKDIR /src
@@ -9,10 +9,26 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd/ ./cmd/
 COPY pkg/ ./pkg/
-# Build with optimizations for size
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o integrated-server ./cmd/integrated-server
 
-# Stage 2: Final minimal runtime
+# Stage 2: Python dependencies (optimized)
+FROM --platform=linux/amd64 python:3.11-alpine AS python-builder
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache --virtual .build-deps \
+    gcc \
+    musl-dev \
+    linux-headers \
+    git
+
+# Copy optimized requirements
+COPY python/requirements-optimized.txt ./requirements.txt
+
+# Install Python packages (CPU-only versions)
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Stage 3: Final runtime image
 FROM --platform=linux/amd64 python:3.11-alpine
 
 WORKDIR /app
@@ -21,28 +37,26 @@ WORKDIR /app
 RUN apk add --no-cache \
     curl \
     ca-certificates \
-    git \
     && rm -rf /var/cache/apk/*
 
 # Copy Go binary
 COPY --from=go-builder /src/integrated-server ./integrated-server
 
-# Copy minimal requirements and install Python packages
-COPY python/requirements-minimal.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt && \
-    rm -rf /root/.cache/pip
+# Copy Python packages from builder
+COPY --from=python-builder /root/.local /root/.local
 
 # Copy Python application code
 COPY python/kubernetes_mcp_server/ ./kubernetes_mcp_server/
 
-# Copy manifests
+# Copy manifests (if needed)
 COPY manifests/ ./manifests/
 
-# Create directories
+# Create necessary directories
 RUN mkdir -p /app/models /app/workspace /tmp
 
-# Environment variables
+# Set environment variables
 ENV PYTHONPATH=/app
+ENV PATH=/root/.local/bin:$PATH
 ENV PORT=8080
 ENV MCP_PORT=8081
 ENV INFERENCE_PORT=8080
