@@ -44,22 +44,25 @@ func (s *Server) initContainers() []server.ServerTool {
 
 	return []server.ServerTool{
 		{Tool: mcp.NewTool("container_build",
-			mcp.WithDescription("Build a container image from source code. Supports Git repositories, local directories, and remote archives. Uses podman/docker for building and can automatically detect Dockerfile location. Provides comprehensive build logging and error handling."),
-			mcp.WithString("source", mcp.Description("Source location for the container build. Can be a Git repository URL (https://github.com/user/repo.git), local directory path (/path/to/source), or remote archive URL. For Git repos, supports specific branches and commits."), mcp.Required()),
-			mcp.WithString("source_type", mcp.Description("Type of source: 'git' for Git repositories, 'local' for local directories, 'url' for remote archives. Defaults to 'git' if source looks like a Git URL, 'local' otherwise.")),
-			mcp.WithString("image_name", mcp.Description("Target container image name. Should include registry if pushing later. Examples: 'my-app:latest', 'quay.io/user/app:v1.0', 'localhost/test:dev'. If not provided, generates name from source."), mcp.Required()),
-			mcp.WithString("dockerfile", mcp.Description("Path to Dockerfile relative to build context. Defaults to 'Dockerfile' in the root. Examples: './Dockerfile', 'docker/Dockerfile', 'build/Dockerfile.prod'.")),
-			mcp.WithString("build_context", mcp.Description("Build context directory relative to source root. Defaults to '.' (source root). Use subdirectory like 'backend' or 'src' if needed.")),
-			mcp.WithString("registry", mcp.Description("Target container registry for the image. Examples: 'quay.io', 'docker.io', 'ghcr.io', 'localhost:5000'. Used for proper image naming and future push operations.")),
-			mcp.WithString("tags", mcp.Description("Comma-separated list of additional tags for the image. Example: 'latest,v1.0,staging'. The main tag is derived from image_name.")),
-			mcp.WithString("platform", mcp.Description("Target platform for the build. Examples: 'linux/amd64', 'linux/arm64', 'linux/amd64,linux/arm64' for multi-platform. Defaults to current platform.")),
-			mcp.WithString("build_args", mcp.Description("Build arguments as JSON string. Example: '{\"ENV\":\"production\",\"VERSION\":\"1.0\"}'. These are passed as --build-arg to the container build.")),
-			mcp.WithString("git_branch", mcp.Description("Git branch to checkout (only for Git sources). Defaults to 'main' or default branch.")),
-			mcp.WithString("git_commit", mcp.Description("Specific Git commit hash to checkout (only for Git sources). Takes precedence over branch.")),
-			mcp.WithBoolean("no_cache", mcp.Description("Disable build cache. Useful for ensuring fresh builds. Defaults to false (cache enabled).")),
-			mcp.WithBoolean("pull", mcp.Description("Always pull latest base images during build. Defaults to true for fresh builds.")),
+			mcp.WithDescription("Build a container image from source code with Red Hat UBI compliance validation. Supports Git repositories, local directories, and remote archives. Automatically validates Dockerfile for Red Hat UBI base images and security best practices."),
+			mcp.WithString("source", mcp.Description("Source location for the container build. Can be a Git repository URL (https://github.com/user/repo.git), local directory path (/path/to/source), or remote archive URL."), mcp.Required()),
+			mcp.WithString("source_type", mcp.Description("Type of source: 'git' for Git repositories, 'local' for local directories, 'url' for remote archives. Auto-detected if not specified.")),
+			mcp.WithString("image_name", mcp.Description("Target container image name. Should include registry if pushing later. Examples: 'my-app:latest', 'quay.io/user/app:v1.0'."), mcp.Required()),
+			mcp.WithString("dockerfile", mcp.Description("Path to Dockerfile relative to build context. Defaults to 'Dockerfile'.")),
+			mcp.WithString("build_context", mcp.Description("Build context directory relative to source root. Defaults to '.' (source root).")),
+			mcp.WithString("registry", mcp.Description("Target container registry. Examples: 'quay.io', 'docker.io', 'ghcr.io'.")),
+			mcp.WithString("tags", mcp.Description("Comma-separated list of additional tags. Example: 'latest,v1.0,staging'.")),
+			mcp.WithString("platform", mcp.Description("Target platform. Examples: 'linux/amd64', 'linux/arm64'. Defaults to current platform.")),
+			mcp.WithString("build_args", mcp.Description("Build arguments as JSON string. Example: '{\"ENV\":\"production\",\"VERSION\":\"1.0\"}'.")),
+			mcp.WithString("git_branch", mcp.Description("Git branch to checkout (only for Git sources). Defaults to 'main'.")),
+			mcp.WithString("git_commit", mcp.Description("Specific Git commit hash to checkout (only for Git sources).")),
+			mcp.WithBoolean("no_cache", mcp.Description("Disable build cache. Defaults to false.")),
+			mcp.WithBoolean("pull", mcp.Description("Always pull latest base images during build. Defaults to true.")),
+			mcp.WithBoolean("validate_ubi", mcp.Description("Validate Red Hat UBI compliance and suggest alternatives. Defaults to true.")),
+			mcp.WithBoolean("generate_ubi_dockerfile", mcp.Description("Generate UBI-compliant Dockerfile if current base image is not UBI. Defaults to false.")),
+			mcp.WithBoolean("security_scan", mcp.Description("Perform security validation on Dockerfile. Defaults to true.")),
 			// Tool annotations
-			mcp.WithTitleAnnotation("Container: Build Image from Source"),
+			mcp.WithTitleAnnotation("Container: Build Image with UBI Validation"),
 			mcp.WithReadOnlyHintAnnotation(false),
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithOpenWorldHintAnnotation(true),
@@ -149,6 +152,9 @@ func (s *Server) containerBuild(ctx context.Context, request mcp.CallToolRequest
 	buildArgsStr := getStringArg(args, "build_args", "{}")
 	noCache := getBoolArg(args, "no_cache", false)
 	pull := getBoolArg(args, "pull", true)
+	validateUBI := getBoolArg(args, "validate_ubi", true)
+	generateUBIDockerfile := getBoolArg(args, "generate_ubi_dockerfile", false)
+	securityScan := getBoolArg(args, "security_scan", true)
 
 	// Parse additional tags
 	var additionalTags []string
@@ -169,8 +175,8 @@ func (s *Server) containerBuild(ctx context.Context, request mcp.CallToolRequest
 
 	klog.V(2).Infof("Building container image: source=%s, type=%s, image=%s", source, sourceType, imageName)
 
-	// Build the container
-	buildResult, err := s.performContainerBuild(ctx, ContainerBuildConfig{
+	// Build the container with UBI validation
+	buildResult, err := s.performContainerBuildWithValidation(ctx, ContainerBuildConfig{
 		SourceType:   sourceType,
 		Source:       source,
 		Dockerfile:   dockerfile,
@@ -180,7 +186,7 @@ func (s *Server) containerBuild(ctx context.Context, request mcp.CallToolRequest
 		Tags:         additionalTags,
 		BuildArgs:    buildArgs,
 		Platform:     platform,
-	}, gitBranch, gitCommit, noCache, pull)
+	}, gitBranch, gitCommit, noCache, pull, validateUBI, generateUBIDockerfile, securityScan)
 
 	if err != nil {
 		return NewTextResult("", fmt.Errorf("container build failed: %v", err)), nil

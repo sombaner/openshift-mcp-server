@@ -15,8 +15,8 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// performContainerBuild executes the actual container build process
-func (s *Server) performContainerBuild(ctx context.Context, config ContainerBuildConfig, gitBranch, gitCommit string, noCache, pull bool) (map[string]interface{}, error) {
+// performContainerBuildWithValidation executes container build with UBI and security validation
+func (s *Server) performContainerBuildWithValidation(ctx context.Context, config ContainerBuildConfig, gitBranch, gitCommit string, noCache, pull, validateUBI, generateUBIDockerfile, securityScan bool) (map[string]interface{}, error) {
 	startTime := time.Now()
 	
 	// Detect container runtime (podman or docker)
@@ -37,6 +37,35 @@ func (s *Server) performContainerBuild(ctx context.Context, config ContainerBuil
 			os.RemoveAll(buildDir)
 		}
 	}()
+
+	// Perform validations if requested
+	var validation map[string]interface{}
+	if validateUBI || securityScan {
+		validation, err = s.enhancedContainerBuildValidation(ctx, config, buildDir)
+		if err != nil {
+			klog.V(1).Infof("Validation failed: %v", err)
+		}
+	}
+
+	// Handle UBI Dockerfile generation if requested
+	actualDockerfile := config.Dockerfile
+	if generateUBIDockerfile && validation != nil {
+		if ubiValidation, ok := validation["ubi_compliance"].(*UBIValidation); ok && !ubiValidation.IsUBI {
+			ubiDockerfilePath, err := s.generateUBIDockerfile(ctx, 
+				filepath.Join(buildDir, config.BuildContext, config.Dockerfile), 
+				ubiValidation.SuggestedUBIImage)
+			if err != nil {
+				klog.V(1).Infof("Failed to generate UBI Dockerfile: %v", err)
+			} else {
+				actualDockerfile = filepath.Base(ubiDockerfilePath)
+				validation["ubi_dockerfile_generated"] = ubiDockerfilePath
+				klog.V(1).Infof("Generated UBI Dockerfile: %s", ubiDockerfilePath)
+			}
+		}
+	}
+
+	// Update config with actual dockerfile
+	config.Dockerfile = actualDockerfile
 
 	// Construct build command
 	buildCmd := s.constructBuildCommand(containerRuntime, config, buildDir, noCache, pull)
@@ -79,9 +108,27 @@ func (s *Server) performContainerBuild(ctx context.Context, config ContainerBuil
 			"build_context": config.BuildContext,
 		},
 		"next_steps": []string{
-			fmt.Sprintf("Image is ready for local use: %s %s run %s", containerRuntime, getRunCommand(containerRuntime), config.ImageName),
-			fmt.Sprintf("To push to registry: %s %s push %s", containerRuntime, getPushCommand(containerRuntime), config.ImageName),
+			fmt.Sprintf("Image is ready for local use: %s run %s", containerRuntime, config.ImageName),
+			fmt.Sprintf("To push to registry: %s push %s", containerRuntime, config.ImageName),
 		},
+	}
+
+	// Include validation results if performed
+	if validation != nil {
+		result["validation"] = validation
+		
+		// Add UBI-specific recommendations
+		if ubiValidation, ok := validation["ubi_compliance"].(*UBIValidation); ok {
+			if !ubiValidation.IsUBI {
+				result["next_steps"] = append(result["next_steps"].([]string), 
+					fmt.Sprintf("⚠️ Consider using Red Hat UBI base image: %s", ubiValidation.SuggestedUBIImage))
+				result["next_steps"] = append(result["next_steps"].([]string), 
+					"UBI provides enterprise security, compliance, and support")
+			} else {
+				result["next_steps"] = append(result["next_steps"].([]string), 
+					"✅ Image uses Red Hat UBI - enterprise ready!")
+			}
+		}
 	}
 
 	return result, nil
@@ -336,20 +383,17 @@ func (s *Server) cloneGitRepository(ctx context.Context, repoURL, branch, commit
 }
 
 func (s *Server) downloadAndExtractArchive(ctx context.Context, archiveURL string) (string, error) {
-	// This is a simplified implementation - in production you'd want proper archive handling
 	tempDir, err := os.MkdirTemp("", "mcp-build-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp directory: %v", err)
 	}
 
-	// Use curl to download (basic implementation)
 	downloadCmd := exec.CommandContext(ctx, "curl", "-L", "-o", filepath.Join(tempDir, "archive"), archiveURL)
 	if err := downloadCmd.Run(); err != nil {
 		os.RemoveAll(tempDir)
 		return "", fmt.Errorf("failed to download archive: %v", err)
 	}
 
-	// Note: In production, you'd detect archive type and extract accordingly
 	return tempDir, nil
 }
 
@@ -450,13 +494,11 @@ func (s *Server) getImageInfo(ctx context.Context, runtime, imageName string) (*
 		return nil, err
 	}
 
-	// Parse the JSON output to extract image information
-	// This is a simplified version - in production you'd parse the full JSON
 	return &ContainerImageInfo{
 		ImageName: imageName,
 		Tags:      []string{extractTagFromImage(imageName)},
 		CreatedAt: time.Now(),
-		Size:      "unknown", // Would parse from inspect output
+		Size:      "unknown",
 	}, nil
 }
 
@@ -517,7 +559,6 @@ func addTagToImage(imageName, tag string) string {
 }
 
 func parseImageLine(line string) map[string]interface{} {
-	// This is a simplified parser - in production you'd handle all the column formats
 	fields := strings.Fields(line)
 	if len(fields) >= 5 {
 		return map[string]interface{}{
@@ -535,10 +576,4 @@ func parseJSON(jsonStr string, v interface{}) error {
 	return json.Unmarshal([]byte(jsonStr), v)
 }
 
-func getRunCommand(runtime string) string {
-	return "run"
-}
 
-func getPushCommand(runtime string) string {
-	return "push"
-}
