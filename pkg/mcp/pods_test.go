@@ -1,8 +1,8 @@
 package mcp
 
 import (
-	"github.com/manusa/kubernetes-mcp-server/pkg/config"
-	"github.com/manusa/kubernetes-mcp-server/pkg/output"
+	"github.com/sur309/openshift-mcp-server/pkg/config"
+	"github.com/sur309/openshift-mcp-server/pkg/output"
 	"regexp"
 	"strings"
 	"testing"

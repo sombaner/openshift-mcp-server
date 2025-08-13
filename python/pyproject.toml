@@ -3,7 +3,7 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kubernetes-mcp-server"
+name = "openshift-mcp-server"
 version = "0.0.0"
 description = "Kubernetes MCP Server (Model Context Protocol) with special support for OpenShift"
 readme = {file="README.md", content-type="text/markdown"}
@@ -18,8 +18,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/manusa/kubernetes-mcp-server"
-Repository = "https://github.com/manusa/kubernetes-mcp-server"
+Homepage = "https://github.com/sur309/openshift-mcp-server"
+Repository = "https://github.com/sur309/openshift-mcp-server"
 
 [project.scripts]
-kubernetes-mcp-server = "kubernetes_mcp_server:main"
+openshift-mcp-server = "kubernetes_mcp_server:main"

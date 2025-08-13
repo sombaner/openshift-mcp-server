@@ -20,8 +20,8 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/klog/v2"
 
-	"github.com/manusa/kubernetes-mcp-server/pkg/config"
-	"github.com/manusa/kubernetes-mcp-server/pkg/helm"
+	"github.com/sur309/openshift-mcp-server/pkg/config"
+	"github.com/sur309/openshift-mcp-server/pkg/helm"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 )

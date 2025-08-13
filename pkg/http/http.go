@@ -13,8 +13,8 @@ import (
 
 	"k8s.io/klog/v2"
 
-	"github.com/manusa/kubernetes-mcp-server/pkg/config"
-	"github.com/manusa/kubernetes-mcp-server/pkg/mcp"
+	"github.com/sur309/openshift-mcp-server/pkg/config"
+	"github.com/sur309/openshift-mcp-server/pkg/mcp"
 )
 
 const (

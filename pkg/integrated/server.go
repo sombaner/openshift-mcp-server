@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	mcpconfig "github.com/manusa/kubernetes-mcp-server/pkg/config"
-	"github.com/manusa/kubernetes-mcp-server/pkg/mcp"
-	"github.com/manusa/kubernetes-mcp-server/pkg/output"
+	mcpconfig "github.com/sur309/openshift-mcp-server/pkg/config"
+	"github.com/sur309/openshift-mcp-server/pkg/mcp"
+	"github.com/sur309/openshift-mcp-server/pkg/output"
 	// Note: Python inference server runs separately in the same container
 )
 
@@ -68,6 +68,9 @@ func NewIntegratedServer(config *IntegratedConfig) (*IntegratedServer, error) {
 
 	// Create HTTP server for MCP
 	httpMux := http.NewServeMux()
+	httpServer := &http.Server{
+		Addr: fmt.Sprintf(":%d", config.MCPPort),
+	}
 
 	// Add MCP health endpoint
 	httpMux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -76,40 +79,36 @@ func NewIntegratedServer(config *IntegratedConfig) (*IntegratedServer, error) {
 		w.Write([]byte(`{"status":"healthy","service":"mcp-server"}`))
 	})
 
-	// Add MCP root endpoint with server info
+	// Mount the MCP server HTTP handler at root for JSON-RPC (initialize, tools/list, tools/call, ...)
+	streamHandler := mcpServer.ServeHTTP(httpServer)
 	httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
-			// Handle GET requests with server info
+		if r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			response := fmt.Sprintf(`{
-				"service": "OpenShift AI MCP Server",
-				"version": "1.0.0",
-				"protocol": "model-context-protocol",
-				"capabilities": [
-					"git_repository_management",
-					"container_image_building",
-					"deployment_automation",
-					"kubernetes_operations"
-				],
-				"endpoints": {
-					"health": "http://localhost:%d/health",
-					"jsonrpc": "http://localhost:%d/"
-				}
-			}`, config.MCPPort, config.MCPPort)
-			w.Write([]byte(response))
-		} else if r.Method == "POST" {
-			// Handle JSON-RPC MCP requests
-			handleMCPRequest(w, r, mcpServer)
-		} else {
-			w.WriteHeader(http.StatusMethodNotAllowed)
+                "service": "OpenShift AI MCP Server",
+                "version": "1.0.0",
+                "protocol": "model-context-protocol",
+                "capabilities": [
+                    "git_repository_management",
+                    "container_image_building",
+                    "deployment_automation",
+                    "kubernetes_operations"
+                ],
+                "endpoints": {
+                    "health": "http://localhost:%d/health",
+                    "jsonrpc": "http://localhost:%d/"
+                }
+            }`, config.MCPPort, config.MCPPort)
+			_, _ = w.Write([]byte(response))
+			return
 		}
+		// Delegate non-GET methods (e.g., POST) to the MCP JSON-RPC handler
+		streamHandler.ServeHTTP(w, r)
 	})
 
-	httpServer := &http.Server{
-		Addr:    fmt.Sprintf(":%d", config.MCPPort),
-		Handler: httpMux,
-	}
+	// Attach mux to server
+	httpServer.Handler = httpMux
 
 	// Create inference server
 	inferenceMux := http.NewServeMux()
@@ -393,22 +392,134 @@ func handleMCPRequest(w http.ResponseWriter, r *http.Request, mcpServer *mcp.Ser
 		result = map[string]interface{}{
 			"tools": []map[string]interface{}{
 				{
-					"name":        "git_add_repository_simple",
-					"description": "Add a Git repository for CI/CD monitoring",
+					"name":        "repo_add",
+					"description": "Add a Git repository for CI/CD monitoring and automated deployment",
 					"inputSchema": map[string]interface{}{
 						"type": "object",
 						"properties": map[string]interface{}{
 							"url": map[string]interface{}{
 								"type":        "string",
-								"description": "Git repository URL",
+								"description": "Git repository URL (e.g., https://github.com/user/repo.git)",
+							},
+							"name": map[string]interface{}{
+								"type":        "string",
+								"description": "Friendly name for the repository (Optional)",
+							},
+							"branch": map[string]interface{}{
+								"type":        "string",
+								"description": "Git branch to monitor (Optional, defaults to 'main')",
+							},
+							"namespace": map[string]interface{}{
+								"type":        "string",
+								"description": "OpenShift/Kubernetes namespace for deployment (Required)",
+							},
+							"dockerfile": map[string]interface{}{
+								"type":        "string",
+								"description": "Path to Dockerfile (Optional, defaults to './Dockerfile')",
+							},
+							"registry": map[string]interface{}{
+								"type":        "string",
+								"description": "Container registry URL (Optional, defaults to 'quay.io')",
+							},
+							"image_name": map[string]interface{}{
+								"type":        "string",
+								"description": "Container image name (Optional, auto-generated from repo name)",
 							},
 						},
-						"required": []string{"url"},
+						"required": []string{"url", "namespace"},
 					},
 				},
 				{
-					"name":        "git_list_repositories_simple",
-					"description": "List monitored Git repositories",
+					"name":        "repo_list",
+					"description": "List all monitored Git repositories with their CI/CD configurations",
+					"inputSchema": map[string]interface{}{
+						"type":       "object",
+						"properties": map[string]interface{}{},
+					},
+				},
+				{
+					"name":        "repo_status",
+					"description": "Get detailed status of a specific repository's CI/CD pipeline",
+					"inputSchema": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"name": map[string]interface{}{
+								"type":        "string",
+								"description": "Repository name or URL",
+							},
+						},
+						"required": []string{"name"},
+					},
+				},
+				{
+					"name":        "repo_build",
+					"description": "Trigger a manual build for a specific repository",
+					"inputSchema": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"name": map[string]interface{}{
+								"type":        "string",
+								"description": "Repository name or URL",
+							},
+							"commit": map[string]interface{}{
+								"type":        "string",
+								"description": "Specific commit hash to build (Optional, defaults to latest)",
+							},
+							"push": map[string]interface{}{
+								"type":        "boolean",
+								"description": "Push built image to registry (Optional, defaults to true)",
+							},
+						},
+						"required": []string{"name"},
+					},
+				},
+				{
+					"name":        "repo_deploy",
+					"description": "Deploy a repository to its configured OpenShift namespace",
+					"inputSchema": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"name": map[string]interface{}{
+								"type":        "string",
+								"description": "Repository name or URL",
+							},
+							"image_tag": map[string]interface{}{
+								"type":        "string",
+								"description": "Specific image tag to deploy (Optional, defaults to latest)",
+							},
+							"namespace": map[string]interface{}{
+								"type":        "string",
+								"description": "Override target namespace (Optional, uses repo config)",
+							},
+						},
+						"required": []string{"name"},
+					},
+				},
+				{
+					"name":        "namespace_create",
+					"description": "Create a new OpenShift namespace/project for deployments",
+					"inputSchema": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"name": map[string]interface{}{
+								"type":        "string",
+								"description": "Namespace name",
+							},
+							"display_name": map[string]interface{}{
+								"type":        "string",
+								"description": "Display name for OpenShift project (Optional)",
+							},
+							"description": map[string]interface{}{
+								"type":        "string",
+								"description": "Description for the namespace/project (Optional)",
+							},
+						},
+						"required": []string{"name"},
+					},
+				},
+				{
+					"name":        "cicd_status",
+					"description": "Get overall CI/CD system status and capabilities",
 					"inputSchema": map[string]interface{}{
 						"type":       "object",
 						"properties": map[string]interface{}{},

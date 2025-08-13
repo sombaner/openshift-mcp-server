@@ -5,7 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/restmapper"
 
-	"github.com/manusa/kubernetes-mcp-server/pkg/config"
+	"github.com/sur309/openshift-mcp-server/pkg/config"
 )
 
 type AccessControlRESTMapper struct {

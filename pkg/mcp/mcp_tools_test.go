@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/manusa/kubernetes-mcp-server/pkg/config"
+	"github.com/sur309/openshift-mcp-server/pkg/config"
 )
 
 func TestUnrestricted(t *testing.T) {

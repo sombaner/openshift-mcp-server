@@ -32,7 +32,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: inference-server
-        image: quay.io/sureshgaikwad/openshift-mcp-server:v5
+        image: quay.io/sureshgaikwad/openshift-mcp-server:v6-multi-repo
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false

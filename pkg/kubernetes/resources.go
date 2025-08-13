@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/manusa/kubernetes-mcp-server/pkg/version"
+	"github.com/sur309/openshift-mcp-server/pkg/version"
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

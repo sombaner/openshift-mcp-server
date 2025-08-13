@@ -9,8 +9,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/manusa/kubernetes-mcp-server/pkg/kubernetes"
-	"github.com/manusa/kubernetes-mcp-server/pkg/output"
+	"github.com/sur309/openshift-mcp-server/pkg/kubernetes"
+	"github.com/sur309/openshift-mcp-server/pkg/output"
 )
 
 func (s *Server) initResources() []server.ServerTool {

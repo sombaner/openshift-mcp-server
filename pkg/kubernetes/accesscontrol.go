@@ -5,7 +5,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/manusa/kubernetes-mcp-server/pkg/config"
+	"github.com/sur309/openshift-mcp-server/pkg/config"
 )
 
 // isAllowed checks the resource is in denied list or not.

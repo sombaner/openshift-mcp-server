@@ -1,4 +1,4 @@
-module github.com/manusa/kubernetes-mcp-server
+module github.com/sur309/openshift-mcp-server
 
 go 1.24.1
 

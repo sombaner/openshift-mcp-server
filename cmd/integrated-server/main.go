@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/manusa/kubernetes-mcp-server/pkg/integrated"
+	"github.com/sur309/openshift-mcp-server/pkg/integrated"
 )
 
 func main() {

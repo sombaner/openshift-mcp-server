@@ -1,6 +1,6 @@
-# 🤖 GitHub Copilot Integration Guide
+# 🤖 GitHub Copilot Integration Guide - Multi-Repository CI/CD
 
-This guide walks you through integrating your deployed OpenShift AI MCP server with GitHub Copilot for automated CI/CD workflows.
+This guide walks you through integrating your deployed OpenShift AI MCP server with GitHub Copilot for **multi-repository automated CI/CD workflows**. The MCP server can now monitor and deploy **any Git repository** to **any OpenShift namespace/project**.
 
 ## 🌐 **Server Endpoints**
 
@@ -70,10 +70,13 @@ Use these custom commands in VS Code:
 
 | Command | Purpose | Usage |
 |---------|---------|-------|
-| `/deploy` | Deploy current project to OpenShift | `@copilot /deploy` |
-| `/build` | Build container image | `@copilot /build` |
-| `/watch-repo` | Set up repository monitoring | `@copilot /watch-repo` |
-| `/status` | Check deployment status | `@copilot /status` |
+| `/add-repo` | Add any Git repository for CI/CD monitoring | `@copilot /add-repo` |
+| `/list-repos` | List all monitored repositories | `@copilot /list-repos` |
+| `/build` | Trigger build for a specific repository | `@copilot /build` |
+| `/deploy` | Deploy repository to its configured namespace | `@copilot /deploy` |
+| `/status` | Get repository CI/CD pipeline status | `@copilot /status` |
+| `/create-namespace` | Create new OpenShift namespace/project | `@copilot /create-namespace` |
+| `/cicd-status` | Get overall system status | `@copilot /cicd-status` |
 
 ### **Step 4: Test the Integration**
 
@@ -120,42 +123,53 @@ curl -X POST https://openshift-ai-mcp-server-mcp-ai-mcp-openshift.apps.rosa.sgai
   }'
 ```
 
-## 🚀 **Automated CI/CD Workflows**
+## 🚀 **Multi-Repository CI/CD Workflows**
 
-### **Workflow 1: Auto-Deploy on Commit**
+### **Workflow 1: Add Any Repository**
 
-When you commit to `main` branch, the MCP server can:
-
-1. **Detect the commit** (Git watcher)
-2. **Build container image** (Docker-in-Docker on OpenShift)
-3. **Push to registry** (Quay.io/Docker Hub)
-4. **Deploy to OpenShift** (Update deployment manifest)
-
-### **Workflow 2: Repository Monitoring**
-
-Set up continuous monitoring:
+Add any Git repository for monitoring and deployment:
 
 ```
-@copilot /watch-repo
+@copilot Please add the repository https://github.com/user/my-app.git for CI/CD monitoring. 
+Deploy it to the 'my-app-prod' namespace.
 ```
 
 This will:
-- Monitor your Git repository for changes
-- Trigger builds automatically
-- Deploy to the `ai-mcp-openshift` namespace
+- Configure the repository for monitoring
+- Set up build and deployment pipelines
+- Use the specified OpenShift namespace
 
-### **Workflow 3: Manual Deployment**
+### **Workflow 2: Monitor Multiple Repositories**
 
-Deploy current project:
+List and manage multiple repositories:
 
 ```
-@copilot /deploy
+@copilot /list-repos
 ```
 
-This will:
-- Build a container image from current code
-- Push to configured registry
-- Deploy to OpenShift with proper manifests
+Shows all configured repositories with their:
+- Git URLs and branches
+- Target namespaces
+- Container registries
+- Build/deployment status
+
+### **Workflow 3: Cross-Project Deployment**
+
+Deploy any repository to any namespace:
+
+```
+@copilot Please deploy the 'my-frontend' repository to the 'staging' namespace 
+instead of its default 'production' namespace.
+```
+
+### **Workflow 4: Create New Projects**
+
+Create new OpenShift projects/namespaces:
+
+```
+@copilot /create-namespace
+# Creates a new namespace for deployments
+```
 
 ## 🛠️ **Troubleshooting**
 
@@ -197,34 +211,39 @@ The current setup uses **no authentication** for simplicity. For production:
 
 ## 📝 **Example Usage**
 
-### **Basic CI/CD Setup**
+### **Multi-Repository CI/CD Setup**
 
-1. Open this repository in VS Code
-2. Open Copilot Chat
-3. Run: `@copilot /watch-repo`
-4. Make changes to your code
-5. Commit and push
-6. Watch automatic deployment!
+1. **Add Multiple Repositories**:
+   ```
+   @copilot Please add these repositories for CI/CD monitoring:
+   - https://github.com/company/frontend.git → deploy to 'frontend-prod' namespace
+   - https://github.com/company/backend.git → deploy to 'backend-prod' namespace  
+   - https://github.com/company/database.git → deploy to 'data-services' namespace
+   ```
 
-### **Manual Build and Deploy**
+2. **Cross-Project Deployment**:
+   ```
+   @copilot Please:
+   1. Build the 'frontend' repository
+   2. Push the image to quay.io/company/frontend
+   3. Deploy it to the 'staging' namespace for testing
+   ```
 
-```
-@copilot Please help me:
-1. Build a container image for this project
-2. Push it to Quay.io
-3. Deploy it to OpenShift in the ai-mcp-openshift namespace
-```
+3. **System Overview**:
+   ```
+   @copilot /cicd-status
+   ```
+   
+   This shows:
+   - Total monitored repositories
+   - Status breakdown (building, deploying, deployed)
+   - Available actions for each repository
 
-### **Check Status**
-
-```
-@copilot /status
-```
-
-This will show:
-- Current deployments in ai-mcp-openshift namespace
-- Pod status and health
-- Available routes and services
+4. **Repository-Specific Status**:
+   ```
+   @copilot /status
+   # Shows detailed pipeline status for current/specified repository
+   ```
 
 ## 🔗 **Useful Links**
 
