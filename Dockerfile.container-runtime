@@ -1,0 +1,101 @@
+# Enhanced Dockerfile with Container Runtime Support
+# Includes Podman for container building capabilities
+
+# Stage 1: Go builder
+FROM --platform=linux/amd64 golang:1.24-alpine AS go-builder
+RUN apk add --no-cache git ca-certificates
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd/ ./cmd/
+COPY pkg/ ./pkg/
+# Build with optimizations for size
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o integrated-server ./cmd/integrated-server
+
+# Stage 2: Container runtime with Podman
+FROM --platform=linux/amd64 registry.access.redhat.com/ubi9/ubi:latest
+
+WORKDIR /app
+
+# Install container runtime and essential tools
+RUN dnf update -y && \
+    dnf install -y --allowerasing \
+        podman \
+        buildah \
+        skopeo \
+        python3 \
+        python3-pip \
+        git \
+        curl \
+        ca-certificates \
+        tar \
+        gzip \
+        which \
+        fuse-overlayfs \
+        slirp4netns && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Configure Podman for rootless operation
+RUN echo 'unqualified-search-registries = ["docker.io", "quay.io", "registry.access.redhat.com"]' > /etc/containers/registries.conf && \
+    echo 'short-name-mode = "permissive"' >> /etc/containers/registries.conf && \
+    echo '[storage]' > /etc/containers/storage.conf && \
+    echo 'driver = "overlay"' >> /etc/containers/storage.conf && \
+    echo 'runroot = "/tmp/containers"' >> /etc/containers/storage.conf && \
+    echo 'graphroot = "/var/lib/containers/storage"' >> /etc/containers/storage.conf && \
+    echo '[storage.options]' >> /etc/containers/storage.conf && \
+    echo 'additionalimagestores = []' >> /etc/containers/storage.conf && \
+    echo '[storage.options.overlay]' >> /etc/containers/storage.conf && \
+    echo 'mountopt = "nodev,metacopy=on"' >> /etc/containers/storage.conf
+
+# Copy Go binary
+COPY --from=go-builder /src/integrated-server ./integrated-server
+
+# Copy minimal requirements and install Python packages
+COPY python/requirements-minimal.txt ./requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt && \
+    rm -rf /root/.cache/pip
+
+# Copy Python application code
+COPY python/kubernetes_mcp_server/ ./kubernetes_mcp_server/
+
+# Copy manifests
+COPY manifests/ ./manifests/
+
+# Create directories and set permissions
+RUN mkdir -p /app/models /app/workspace /tmp /var/lib/containers && \
+    chmod 755 /app/models /app/workspace /tmp
+
+# Environment variables
+ENV PYTHONPATH=/app
+ENV PORT=8080
+ENV MCP_PORT=8081
+ENV INFERENCE_PORT=8080
+ENV MCP_PROFILE=cicd
+ENV LOG_LEVEL=2
+ENV DEFAULT_REGISTRY=quay.io
+ENV DEFAULT_NAMESPACE=ai-mcp-openshift
+ENV CONTAINER_RUNTIME=podman
+ENV BUILDAH_ISOLATION=chroot
+
+# Create application user with container permissions
+RUN useradd -m -u 1001 -g 0 -s /bin/bash appuser && \
+    echo 'appuser:100000:65536' > /etc/subuid && \
+    echo 'appuser:100000:65536' > /etc/subgid && \
+    chown -R appuser:0 /app && \
+    chmod -R g=u /app && \
+    chown -R appuser:0 /var/lib/containers && \
+    chmod -R g=u /var/lib/containers
+
+# Switch to application user
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Expose ports
+EXPOSE 8080 8081
+
+# Start the integrated server
+ENTRYPOINT ["./integrated-server"]

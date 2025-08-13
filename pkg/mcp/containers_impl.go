@@ -322,8 +322,21 @@ func (s *Server) performContainerInspect(ctx context.Context, imageName, format 
 // Helper implementation functions
 
 func detectContainerRuntime() (string, error) {
+	// Check if runtime is explicitly set via environment variable
+	if runtime := os.Getenv("CONTAINER_RUNTIME"); runtime != "" {
+		if _, err := exec.LookPath(runtime); err == nil {
+			// Initialize Podman if it's the chosen runtime
+			if runtime == "podman" {
+				initializePodman()
+			}
+			return runtime, nil
+		}
+		klog.V(1).Infof("Requested container runtime %s not found, falling back to auto-detection", runtime)
+	}
+	
 	// Check for podman first (preferred for OpenShift environments)
 	if _, err := exec.LookPath("podman"); err == nil {
+		initializePodman()
 		return "podman", nil
 	}
 	
@@ -333,6 +346,23 @@ func detectContainerRuntime() (string, error) {
 	}
 	
 	return "", fmt.Errorf("neither podman nor docker found in PATH")
+}
+
+// initializePodman ensures Podman storage is properly initialized
+func initializePodman() {
+	// Run podman system migrate to initialize storage (ignore errors as it may already be initialized)
+	cmd := exec.Command("podman", "system", "migrate")
+	if err := cmd.Run(); err != nil {
+		klog.V(2).Infof("Podman system migrate failed (may already be initialized): %v", err)
+	}
+	
+	// Verify Podman is working by running podman info
+	cmd = exec.Command("podman", "info", "--format", "json")
+	if err := cmd.Run(); err != nil {
+		klog.V(1).Infof("Warning: Podman info check failed: %v", err)
+	} else {
+		klog.V(1).Info("Podman runtime initialized successfully")
+	}
 }
 
 func (s *Server) prepareBuildSource(ctx context.Context, config ContainerBuildConfig, gitBranch, gitCommit string) (string, error) {

@@ -1,0 +1,188 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openshift-ai-mcp-server
+  namespace: ai-mcp-openshift
+  labels:
+    app.kubernetes.io/name: openshift-ai-mcp-server
+    app.kubernetes.io/component: server
+    app.kubernetes.io/version: "9.0.0"
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openshift-ai-mcp-server
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openshift-ai-mcp-server
+        app.kubernetes.io/component: server
+        app.kubernetes.io/version: "9.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: openshift-ai-mcp-server
+      securityContext:
+        # Let OpenShift assign the UID/GID dynamically
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: inference-server
+        image: quay.io/sureshgaikwad/openshift-mcp-server:v10-openshift-runtime
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          # Let OpenShift assign UID/GID - don't specify them explicitly
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: mcp
+          containerPort: 8081
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "8080"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: LOG_LEVEL
+          value: "2"
+        - name: MCP_PORT
+          value: "8081"
+        - name: INFERENCE_PORT
+          value: "8080"
+        - name: MCP_PROFILE
+          value: "cicd"
+        - name: CONTAINER_RUNTIME
+          value: "podman"
+        - name: BUILDAH_ISOLATION
+          value: "chroot"
+        - name: STORAGE_DRIVER
+          value: "vfs"
+        - name: STORAGE_OPTS
+          value: "vfs.imagestore=/var/lib/containers/storage"
+        # Make storage paths work with any UID
+        - name: XDG_RUNTIME_DIR
+          value: "/tmp/containers"
+        - name: TMPDIR
+          value: "/tmp"
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: DEFAULT_REGISTRY
+          valueFrom:
+            configMapKeyRef:
+              name: mcp-server-config
+              key: default_registry
+              optional: true
+        - name: REGISTRY_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: registry-credentials
+              key: username
+              optional: true
+        - name: REGISTRY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: registry-credentials
+              key: password
+              optional: true
+        - name: WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: webhook-secret
+              key: secret
+              optional: true
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: models-volume
+          mountPath: /app/models
+        - name: tmp-volume
+          mountPath: /tmp
+        - name: workspace-volume
+          mountPath: /workspace
+        - name: containers-storage
+          mountPath: /var/lib/containers
+        - name: containers-home
+          mountPath: /home/appuser
+      volumes:
+      - name: config-volume
+        configMap:
+          name: mcp-server-config
+      - name: models-volume
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: tmp-volume
+        emptyDir:
+          sizeLimit: 2Gi
+      - name: workspace-volume
+        emptyDir:
+          sizeLimit: 5Gi
+      - name: containers-storage
+        emptyDir:
+          sizeLimit: 10Gi
+      - name: containers-home
+        emptyDir:
+          sizeLimit: 1Gi
+      restartPolicy: Always
+      dnsPolicy: ClusterFirst
+      terminationGracePeriodSeconds: 30
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: node-role.kubernetes.io/worker
+                operator: In
+                values: ["true"]
