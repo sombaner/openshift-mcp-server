@@ -1,0 +1,27 @@
+{
+  "name": "openshift-mcp-server",
+  "version": "1.0.0",
+  "description": "A comprehensive Model Context Protocol (MCP) server that runs on OpenShift AI, providing both ML inference capabilities and automated CI/CD pipelines for Kubernetes/OpenShift deployments.",
+  "main": "mcp-http-bridge.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sur309/openshift-mcp-server.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sur309/openshift-mcp-server/issues"
+  },
+  "homepage": "https://github.com/sur309/openshift-mcp-server#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.2"
+  }
+}

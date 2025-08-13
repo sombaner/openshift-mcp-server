@@ -1,0 +1,82 @@
+{
+  "name": "openshift-mcp-cursor",
+  "displayName": "OpenShift MCP Integration",
+  "description": "Integrate OpenShift MCP Server with Cursor for container building and CI/CD automation",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:openshift-mcp.build",
+    "onCommand:openshift-mcp.deploy",
+    "onCommand:openshift-mcp.listTools"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "openshift-mcp.build",
+        "title": "Build Container with UBI Validation",
+        "category": "OpenShift MCP"
+      },
+      {
+        "command": "openshift-mcp.deploy",
+        "title": "Auto-Deploy Repository",
+        "category": "OpenShift MCP"
+      },
+      {
+        "command": "openshift-mcp.listTools",
+        "title": "List Available Tools",
+        "category": "OpenShift MCP"
+      },
+      {
+        "command": "openshift-mcp.listPods",
+        "title": "List Kubernetes Pods",
+        "category": "OpenShift MCP"
+      }
+    ],
+    "configuration": {
+      "title": "OpenShift MCP",
+      "properties": {
+        "openshift-mcp.serverUrl": {
+          "type": "string",
+          "default": "https://openshift-ai-mcp-server-mcp-ai-mcp-openshift.apps.rosa.sgaikwad.15fi.p3.openshiftapps.com",
+          "description": "URL of the OpenShift MCP Server"
+        }
+      }
+    },
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "resourceFilename == Dockerfile",
+          "command": "openshift-mcp.build",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "openshift-mcp.build"
+        },
+        {
+          "command": "openshift-mcp.deploy"
+        },
+        {
+          "command": "openshift-mcp.listTools"
+        },
+        {
+          "command": "openshift-mcp.listPods"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.60.0",
+    "vsce": "^2.15.0"
+  }
+}
