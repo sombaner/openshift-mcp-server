@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "openshift-ai": {
+      "name": "OpenShift AI MCP Server",
+      "command": "node",
+      "args": [
+        "/Users/sureshgaikwad/openshift-mcp-server/claude-mcp-proxy.js"
+      ],
+      "capabilities": [
+        "git_repository_management",
+        "container_image_building",
+        "deployment_automation",
+        "kubernetes_operations"
+      ]
+    }
+  }
+}

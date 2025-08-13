@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 NAMESPACE="ai-mcp-openshift"
-IMAGE="quay.io/sureshgaikwad/openshift-mcp-server:v4"
+IMAGE="quay.io/sureshgaikwad/openshift-mcp-server:v5"
 
 echo -e "${BLUE}🚀 Deploying OpenShift AI MCP Server${NC}"
 echo -e "${BLUE}📦 Image: ${IMAGE} (270MB optimized)${NC}"
