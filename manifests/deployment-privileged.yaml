@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: openshift-ai-mcp-server
     app.kubernetes.io/component: server
-    app.kubernetes.io/version: "9.0.0"
+    app.kubernetes.io/version: "10.1.0"
     app.kubernetes.io/managed-by: kubectl
 spec:
   replicas: 1
@@ -19,7 +19,7 @@ spec:
       labels:
         app.kubernetes.io/name: openshift-ai-mcp-server
         app.kubernetes.io/component: server
-        app.kubernetes.io/version: "9.0.0"
+        app.kubernetes.io/version: "10.1.0"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
@@ -27,25 +27,29 @@ spec:
     spec:
       serviceAccountName: openshift-ai-mcp-server
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1001
+        # Privileged mode for container runtime
+        runAsUser: 0
         runAsGroup: 0
         fsGroup: 0
-        seccompProfile:
-          type: RuntimeDefault
       containers:
       - name: inference-server
-        image: quay.io/sureshgaikwad/openshift-mcp-server:v9-container-runtime
+        image: quay.io/sureshgaikwad/openshift-mcp-server:v12-privileged-runtime
         imagePullPolicy: Always
         securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: false
-          runAsNonRoot: true
-          runAsUser: 1001
+          # Enable privileged mode for container runtime operations
+          privileged: true
+          allowPrivilegeEscalation: true
+          runAsUser: 0
           runAsGroup: 0
+          capabilities:
+            add:
+            - SYS_ADMIN
+            - DAC_OVERRIDE
+            - SETUID
+            - SETGID
+            - SYS_CHROOT
+            - MKNOD
+          readOnlyRootFilesystem: false
         ports:
         - name: http
           containerPort: 8080
@@ -71,9 +75,13 @@ spec:
         - name: BUILDAH_ISOLATION
           value: "chroot"
         - name: STORAGE_DRIVER
-          value: "vfs"
-        - name: STORAGE_OPTS
-          value: "vfs.imagestore=/var/lib/containers/storage"
+          value: "overlay"
+        - name: XDG_RUNTIME_DIR
+          value: "/run/containers"
+        - name: TMPDIR
+          value: "/tmp"
+        - name: HOME
+          value: "/root"
         - name: NAMESPACE
           valueFrom:
             fieldRef:
@@ -116,11 +124,11 @@ spec:
               optional: true
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "1Gi"
+            cpu: "500m"
           limits:
-            memory: "2Gi"
-            cpu: "1000m"
+            memory: "4Gi"
+            cpu: "2000m"
         livenessProbe:
           httpGet:
             path: /health
@@ -149,37 +157,47 @@ spec:
           mountPath: /workspace
         - name: containers-storage
           mountPath: /var/lib/containers
-        - name: containers-cache
-          mountPath: /home/appuser/.cache
         - name: containers-run
           mountPath: /run/containers
+        - name: containers-cache
+          mountPath: /root/.cache
+        # Mount /sys for container runtime
+        - name: sys-volume
+          mountPath: /sys
+          readOnly: true
       volumes:
       - name: config-volume
         configMap:
           name: mcp-server-config
       - name: models-volume
         emptyDir:
-          sizeLimit: 1Gi
+          sizeLimit: 2Gi
       - name: tmp-volume
         emptyDir:
-          sizeLimit: 2Gi
+          sizeLimit: 4Gi
       - name: workspace-volume
         emptyDir:
-          sizeLimit: 5Gi
+          sizeLimit: 10Gi
       - name: containers-storage
         emptyDir:
-          sizeLimit: 10Gi
-      - name: containers-cache
-        emptyDir:
-          sizeLimit: 2Gi
+          sizeLimit: 20Gi
       - name: containers-run
         emptyDir:
-          sizeLimit: 1Gi
+          sizeLimit: 2Gi
+      - name: containers-cache
+        emptyDir:
+          sizeLimit: 4Gi
+      - name: sys-volume
+        hostPath:
+          path: /sys
+          type: Directory
       restartPolicy: Always
       dnsPolicy: ClusterFirst
       terminationGracePeriodSeconds: 30
       nodeSelector:
         kubernetes.io/arch: amd64
+      # Higher priority for privileged workload
+      priorityClassName: system-cluster-critical
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -189,4 +207,3 @@ spec:
               - key: node-role.kubernetes.io/worker
                 operator: In
                 values: ["true"]
-

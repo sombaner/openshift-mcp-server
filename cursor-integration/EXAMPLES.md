@@ -326,3 +326,4 @@ Use the MCP tools for any container or Kubernetes operations.
 
 This integration gives you the full power of your OpenShift MCP server directly within Cursor! 🚀
 
+

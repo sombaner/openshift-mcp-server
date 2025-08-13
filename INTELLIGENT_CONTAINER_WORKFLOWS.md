@@ -327,3 +327,4 @@ node mcp-cli.js execute "Set up GitHub Container Registry with token authenticat
 ---
 
 *Your OpenShift MCP Server now provides intelligent container workflow orchestration with natural language processing, making container operations more intuitive and efficient than ever before.*
+

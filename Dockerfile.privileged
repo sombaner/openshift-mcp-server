@@ -1,5 +1,5 @@
-# OpenShift-compatible Dockerfile with Container Runtime Support
-# Works with OpenShift's dynamic UID assignment
+# Privileged Dockerfile for Container Runtime Operations
+# Designed to run with full privileges for container builds
 
 # Stage 1: Go builder
 FROM --platform=linux/amd64 golang:1.24-alpine AS go-builder
@@ -12,17 +12,19 @@ COPY pkg/ ./pkg/
 # Build with optimizations for size
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o integrated-server ./cmd/integrated-server
 
-# Stage 2: Container runtime with Podman
+# Stage 2: Privileged container runtime
 FROM --platform=linux/amd64 registry.access.redhat.com/ubi9/ubi:latest
 
 WORKDIR /app
 
-# Install container runtime and essential tools
+# Install container runtime and essential tools with enhanced capabilities
 RUN dnf update -y && \
     dnf install -y --allowerasing \
         podman \
         buildah \
         skopeo \
+        runc \
+        crun \
         python3 \
         python3-pip \
         git \
@@ -32,19 +34,29 @@ RUN dnf update -y && \
         gzip \
         which \
         fuse-overlayfs \
-        slirp4netns && \
+        slirp4netns \
+        iptables \
+        systemd \
+        dbus \
+        procps-ng && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
-# Configure Podman for rootless operation
+# Configure Podman for privileged operation
 RUN echo 'unqualified-search-registries = ["docker.io", "quay.io", "registry.access.redhat.com"]' > /etc/containers/registries.conf && \
     echo 'short-name-mode = "permissive"' >> /etc/containers/registries.conf && \
     echo '[storage]' > /etc/containers/storage.conf && \
-    echo 'driver = "vfs"' >> /etc/containers/storage.conf && \
-    echo 'runroot = "/tmp/containers"' >> /etc/containers/storage.conf && \
+    echo 'driver = "overlay"' >> /etc/containers/storage.conf && \
+    echo 'runroot = "/run/containers"' >> /etc/containers/storage.conf && \
     echo 'graphroot = "/var/lib/containers/storage"' >> /etc/containers/storage.conf && \
     echo '[storage.options]' >> /etc/containers/storage.conf && \
-    echo 'additionalimagestores = []' >> /etc/containers/storage.conf
+    echo 'additionalimagestores = []' >> /etc/containers/storage.conf && \
+    echo '[storage.options.overlay]' >> /etc/containers/storage.conf && \
+    echo 'mountopt = "nodev"' >> /etc/containers/storage.conf && \
+    echo 'mount_program = "/usr/bin/fuse-overlayfs"' >> /etc/containers/storage.conf
+
+# Configure container policies
+RUN echo '{"default":[{"type":"insecureAcceptAnything"}]}' > /etc/containers/policy.json
 
 # Copy Go binary
 COPY --from=go-builder /src/integrated-server ./integrated-server
@@ -60,18 +72,15 @@ COPY python/kubernetes_mcp_server/ ./kubernetes_mcp_server/
 # Copy manifests
 COPY manifests/ ./manifests/
 
-# Create directories with proper permissions for OpenShift
-RUN mkdir -p /app/models /app/workspace /tmp /var/lib/containers /home/appuser && \
+# Create directories with proper permissions for privileged operation
+RUN mkdir -p /app/models /app/workspace /tmp /var/lib/containers /run/containers /root/.cache && \
     chmod 755 /app/models /app/workspace /tmp && \
-    chmod -R 777 /var/lib/containers /home/appuser && \
-    chmod g+rwx /app && \
-    chgrp -R 0 /app && \
-    chmod -R g=u /app && \
-    chgrp -R 0 /var/lib/containers && \
-    chgrp -R 0 /home/appuser && \
-    chmod -R g=u /home/appuser
+    chmod 755 /var/lib/containers /run/containers /root/.cache
 
-# Environment variables
+# Initialize Podman storage
+RUN podman system migrate || true
+
+# Environment variables for privileged operation
 ENV PYTHONPATH=/app
 ENV PORT=8080
 ENV MCP_PORT=8081
@@ -82,10 +91,13 @@ ENV DEFAULT_REGISTRY=quay.io
 ENV DEFAULT_NAMESPACE=ai-mcp-openshift
 ENV CONTAINER_RUNTIME=podman
 ENV BUILDAH_ISOLATION=chroot
-ENV STORAGE_DRIVER=vfs
-ENV XDG_RUNTIME_DIR=/tmp/containers
+ENV STORAGE_DRIVER=overlay
+ENV XDG_RUNTIME_DIR=/run/containers
 ENV TMPDIR=/tmp
-ENV HOME=/home/appuser
+ENV HOME=/root
+
+# Set proper permissions for the entrypoint
+RUN chmod +x ./integrated-server
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
@@ -94,10 +106,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Expose ports
 EXPOSE 8080 8081
 
-# No specific user - let OpenShift assign UID
-# Set proper permissions for the entrypoint
-RUN chmod +x ./integrated-server
+# Run as root for privileged operations
+USER root
 
 # Start the integrated server
 ENTRYPOINT ["./integrated-server"]
-

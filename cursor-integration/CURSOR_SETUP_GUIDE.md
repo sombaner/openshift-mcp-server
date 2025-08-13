@@ -246,3 +246,4 @@ Create keyboard shortcuts in Cursor:
 
 The integration gives you all the power of your OpenShift MCP server directly within Cursor's development environment.
 
+

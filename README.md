@@ -32,12 +32,12 @@ A comprehensive Model Context Protocol (MCP) server that runs on OpenShift AI, p
 
 ## 🛠️ Installation
 
-### 1. Deploy to OpenShift
+### Quick Start: Deploy to OpenShift
 
 ```bash
 # Clone the repository
 git clone https://github.com/sur309/openshift-mcp-server.git
-cd kubernetes-mcp-server
+cd openshift-mcp-server
 
 # Create namespace and apply manifests
 oc apply -f manifests/namespace.yaml
@@ -46,31 +46,251 @@ oc apply -f manifests/configmap.yaml
 oc apply -f manifests/secrets.yaml
 oc apply -f manifests/deployment.yaml
 oc apply -f manifests/service.yaml
+
+# Apply Security Context Constraints (SCC) for the service account
+oc adm policy add-scc-to-user anyuid -z openshift-ai-mcp-server -n ai-mcp-openshift
 ```
 
-### 2. Configure Secrets
+## 🚀 OpenShift Deployment Guide
+
+### Prerequisites for OpenShift
+
+- OpenShift 4.10+ cluster access
+- `oc` CLI tool installed and authenticated
+- Cluster admin privileges for SCC management
+- Container registry credentials (Quay.io, Docker Hub, etc.)
+
+### Step-by-Step OpenShift Deployment
+
+#### 1. **Clone and Navigate to Repository**
 
 ```bash
-# Set up container registry credentials
+git clone https://github.com/sur309/openshift-mcp-server.git
+cd openshift-mcp-server
+```
+
+#### 2. **Create Project/Namespace**
+
+```bash
+# Create the project namespace
+oc apply -f manifests/namespace.yaml
+
+# Alternatively, create using oc new-project
+# oc new-project ai-mcp-openshift --display-name="AI MCP OpenShift Server"
+```
+
+#### 3. **Apply Security Context Constraints (Critical for OpenShift)**
+
+OpenShift requires specific Security Context Constraints (SCC) to allow the MCP server to run with the necessary permissions:
+
+```bash
+# Add anyuid SCC to the service account
+oc adm policy add-scc-to-user anyuid -z openshift-ai-mcp-server -n ai-mcp-openshift
+
+# Verify the SCC assignment
+oc describe scc anyuid | grep -A 10 "Users:"
+oc get scc anyuid -o yaml | grep -A 20 users:
+```
+
+#### 4. **Configure RBAC (Role-Based Access Control)**
+
+```bash
+# Apply service account and cluster-wide permissions
+oc apply -f manifests/rbac.yaml
+
+# Verify RBAC configuration
+oc get serviceaccount openshift-ai-mcp-server -n ai-mcp-openshift
+oc get clusterrolebinding openshift-ai-mcp-server
+```
+
+#### 5. **Create Configuration and Secrets**
+
+```bash
+# Apply configuration
+oc apply -f manifests/configmap.yaml
+
+# Create registry credentials secret
 oc create secret generic registry-credentials \
   --from-literal=username=YOUR_REGISTRY_USERNAME \
   --from-literal=password=YOUR_REGISTRY_TOKEN \
   --from-literal=email=YOUR_EMAIL \
   -n ai-mcp-openshift
 
-# Set up Git credentials
+# Create Git credentials secret
 oc create secret generic git-credentials \
   --from-literal=username=YOUR_GIT_USERNAME \
   --from-literal=token=YOUR_GIT_TOKEN \
   -n ai-mcp-openshift
 
-# Set up webhook secret
+# Create webhook secret for CI/CD
 oc create secret generic webhook-secret \
-  --from-literal=secret=YOUR_WEBHOOK_SECRET \
+  --from-literal=secret=$(openssl rand -hex 32) \
   -n ai-mcp-openshift
+
+# Apply the secrets manifest (if using file-based secrets)
+# oc apply -f manifests/secrets.yaml
 ```
 
-### 3. Build and Push Container Image
+#### 6. **Deploy the Application**
+
+```bash
+# Deploy the MCP server
+oc apply -f manifests/deployment.yaml
+
+# Create the service
+oc apply -f manifests/service.yaml
+
+# Verify deployment status
+oc get pods -n ai-mcp-openshift
+oc get deployment openshift-ai-mcp-server -n ai-mcp-openshift
+```
+
+#### 7. **Create OpenShift Route (for external access)**
+
+```bash
+# Create route for external access
+oc expose service openshift-ai-mcp-server --port=8080 -n ai-mcp-openshift
+
+# Create route for MCP endpoint
+oc create route edge openshift-ai-mcp-server-mcp \
+  --service=openshift-ai-mcp-server \
+  --port=8081 \
+  -n ai-mcp-openshift
+
+# Get route URLs
+oc get routes -n ai-mcp-openshift
+```
+
+#### 8. **Verify Deployment**
+
+```bash
+# Check pod status
+oc get pods -n ai-mcp-openshift -o wide
+
+# View application logs
+oc logs -f deployment/openshift-ai-mcp-server -n ai-mcp-openshift
+
+# Test health endpoints
+ROUTE_URL=$(oc get route openshift-ai-mcp-server -o jsonpath='{.spec.host}' -n ai-mcp-openshift)
+curl -k https://$ROUTE_URL/health
+curl -k https://$ROUTE_URL:8081/health/mcp
+```
+
+### OpenShift-Specific Features
+
+#### **Security Context Constraints (SCC) Explained**
+
+The MCP server requires the `anyuid` SCC because it:
+- Needs to run container builds and manage container registries
+- Requires access to Docker/Podman socket for CI/CD operations  
+- May need to run with specific user IDs for compatibility
+
+```bash
+# Check current SCC assignments
+oc get scc anyuid -o yaml
+
+# Verify service account has proper SCC
+oc describe serviceaccount openshift-ai-mcp-server -n ai-mcp-openshift
+```
+
+#### **OpenShift Routes vs Services**
+
+```bash
+# Internal access (within cluster)
+oc get svc openshift-ai-mcp-server -n ai-mcp-openshift
+
+# External access (internet-facing)
+oc get routes -n ai-mcp-openshift
+
+# Test internal service
+oc port-forward svc/openshift-ai-mcp-server 8080:8080 -n ai-mcp-openshift
+```
+
+### Troubleshooting OpenShift Deployment
+
+#### **Common OpenShift Issues**
+
+1. **SCC Permission Denied**
+   ```bash
+   # Error: pods "openshift-ai-mcp-server-xxx" is forbidden: unable to validate against any security context constraint
+   oc adm policy add-scc-to-user anyuid -z openshift-ai-mcp-server -n ai-mcp-openshift
+   ```
+
+2. **Image Pull Issues**
+   ```bash
+   # Check image pull secrets
+   oc get secrets -n ai-mcp-openshift | grep registry
+   oc describe pod <pod-name> -n ai-mcp-openshift
+   ```
+
+3. **RBAC Permission Errors**
+   ```bash
+   # Check cluster role binding
+   oc get clusterrolebinding openshift-ai-mcp-server -o yaml
+   oc auth can-i create pods --as=system:serviceaccount:ai-mcp-openshift:openshift-ai-mcp-server
+   ```
+
+4. **Route Access Issues**
+   ```bash
+   # Check route configuration
+   oc describe route openshift-ai-mcp-server -n ai-mcp-openshift
+   
+   # Test internal connectivity
+   oc rsh deployment/openshift-ai-mcp-server curl localhost:8080/health
+   ```
+
+#### **Debug Commands**
+
+```bash
+# Get comprehensive pod information
+oc describe pod -l app.kubernetes.io/name=openshift-ai-mcp-server -n ai-mcp-openshift
+
+# Check resource usage
+oc adm top pod -n ai-mcp-openshift
+
+# View events
+oc get events --sort-by='.lastTimestamp' -n ai-mcp-openshift
+
+# Check security context
+oc get pod -o yaml | grep -A 10 securityContext
+```
+
+### Alternative Installation Methods
+
+#### 1. **Using oc new-app (One-Command Deployment)**
+
+```bash
+# Create new project and deploy in one command
+oc new-project ai-mcp-openshift
+oc new-app https://github.com/sur309/openshift-mcp-server.git \
+  --name=openshift-ai-mcp-server \
+  --strategy=docker
+
+# Apply SCC and additional configurations
+oc adm policy add-scc-to-user anyuid -z default -n ai-mcp-openshift
+oc expose svc/openshift-ai-mcp-server
+```
+
+#### 2. **Using Helm Charts (if available)**
+
+```bash
+# Add Helm repository (if published)
+helm repo add openshift-mcp-server https://your-helm-repo.com
+helm repo update
+
+# Install with Helm
+helm install mcp-server openshift-mcp-server/openshift-mcp-server \
+  --namespace ai-mcp-openshift \
+  --create-namespace \
+  --set image.tag=latest \
+  --set serviceAccount.annotations."openshift\.io/scc"=anyuid
+```
+
+## 🔧 Configuration
+
+### Container Image Management
+
+#### Build and Push Container Image
 
 ```bash
 # Build the container image
@@ -210,6 +430,63 @@ curl -X POST http://localhost:8080/infer \
 
 # List available models
 curl http://localhost:8080/models
+```
+
+## ✅ Post-Deployment Verification
+
+### Verify MCP Server Installation
+
+After deploying the MCP server to OpenShift, run these commands to ensure everything is working correctly:
+
+```bash
+# 1. Check pod status
+oc get pods -l app.kubernetes.io/name=openshift-ai-mcp-server -n ai-mcp-openshift
+
+# 2. Verify service account has proper SCC
+oc get serviceaccount openshift-ai-mcp-server -n ai-mcp-openshift -o yaml
+
+# 3. Check SCC assignment
+oc get scc anyuid -o yaml | grep -A 10 "users:"
+
+# 4. Test health endpoints
+ROUTE_URL=$(oc get route openshift-ai-mcp-server -o jsonpath='{.spec.host}' -n ai-mcp-openshift 2>/dev/null)
+if [ ! -z "$ROUTE_URL" ]; then
+  echo "Testing health endpoint: https://$ROUTE_URL/health"
+  curl -k -s https://$ROUTE_URL/health | jq .
+else
+  echo "Route not found. Testing via port-forward..."
+  oc port-forward svc/openshift-ai-mcp-server 8080:8080 -n ai-mcp-openshift &
+  sleep 2
+  curl -s http://localhost:8080/health | jq .
+  pkill -f "oc port-forward"
+fi
+
+# 5. Test MCP endpoint
+curl -k -s https://$ROUTE_URL:8081/mcp/tools | jq .
+
+# 6. Check application logs
+oc logs -f deployment/openshift-ai-mcp-server --tail=50 -n ai-mcp-openshift
+```
+
+### Using the MCP CLI Tool
+
+After deployment, you can use the included CLI tool to interact with your MCP server:
+
+```bash
+# Navigate to the CLI tool directory
+cd cursor-integration/cli-tools
+
+# Set the MCP server URL (replace with your actual route)
+export MCP_SERVER_URL="https://$(oc get route openshift-ai-mcp-server-mcp -o jsonpath='{.spec.host}' -n ai-mcp-openshift)"
+
+# Test the CLI tool
+node mcp-cli.js tools
+
+# Execute a workflow
+node mcp-cli.js execute "Deploy a sample application to my OpenShift cluster"
+
+# Analyze a prompt
+node mcp-cli.js analyze "I want to build and deploy a container from my Git repository"
 ```
 
 ## 🔄 CI/CD Pipeline Flow

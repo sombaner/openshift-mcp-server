@@ -313,3 +313,4 @@ export DEFAULT_NAMESPACE="development"
 
 All methods give you access to the **31 available MCP tools** for complete OpenShift and container management! 🎉
 
+
