@@ -56,3 +56,4 @@ Claude Desktop should now:
 - Complete OpenShift integration
 
 The fix is complete! 🎉
+

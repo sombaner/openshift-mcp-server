@@ -46,6 +46,8 @@ func (p *FullProfile) GetTools(s *Server) []server.ServerTool {
 		s.initHelm(),
 		s.initCicdSimple(),
 		s.initContainers(),
+		s.initRegistryTools(),
+		s.initWorkflowTools(),
 	)
 }
 
@@ -55,7 +57,7 @@ func (p *CicdProfile) GetName() string {
 	return "cicd"
 }
 func (p *CicdProfile) GetDescription() string {
-	return "CI/CD profile with Git monitoring, container image building, registry management, and automated deployment tools"
+	return "CI/CD profile with intelligent workflow orchestration, Git monitoring, container image building, registry management, and automated deployment tools with natural language processing"
 }
 func (p *CicdProfile) GetTools(s *Server) []server.ServerTool {
 	return slices.Concat(
@@ -65,6 +67,8 @@ func (p *CicdProfile) GetTools(s *Server) []server.ServerTool {
 		s.initResources(),
 		s.initCicdSimple(),
 		s.initContainers(),
+		s.initRegistryTools(),
+		s.initWorkflowTools(),
 	)
 }
 

@@ -43,9 +43,10 @@ func (c *Configuration) isToolApplicable(tool server.ServerTool) bool {
 }
 
 type Server struct {
-	configuration *Configuration
-	server        *server.MCPServer
-	k             *internalk8s.Manager
+	configuration        *Configuration
+	server               *server.MCPServer
+	k                    *internalk8s.Manager
+	workflowOrchestrator *WorkflowOrchestrator
 }
 
 func NewServer(configuration Configuration) (*Server, error) {

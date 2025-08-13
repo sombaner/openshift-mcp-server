@@ -103,3 +103,4 @@ Once Claude Desktop is restarted, you can verify the integration by asking:
 ```
 
 The server should respond with all the new container management capabilities including UBI validation features.
+

@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: openshift-ai-mcp-server
     app.kubernetes.io/component: server
-    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/version: "8.0.0"
     app.kubernetes.io/managed-by: kubectl
 spec:
   replicas: 1
@@ -19,7 +19,7 @@ spec:
       labels:
         app.kubernetes.io/name: openshift-ai-mcp-server
         app.kubernetes.io/component: server
-        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/version: "8.0.0"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
@@ -32,7 +32,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: inference-server
-        image: quay.io/sureshgaikwad/openshift-mcp-server:v7-ubi-validation
+        image: quay.io/sureshgaikwad/openshift-mcp-server:v8-intelligent-workflows
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false

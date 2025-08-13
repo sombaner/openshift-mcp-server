@@ -1,7 +1,7 @@
 {
-  "name": "openshift-mcp-server-windows-arm64",
+  "name": "kubernetes-mcp-server-windows-arm64",
   "version": "0.0.0",
-  "description": "Model Context Protocol (MCP) server for OpenShift and Kubernetes",
+  "description": "Model Context Protocol (MCP) server for Kubernetes and OpenShift",
   "os": [
     "win32"
   ],

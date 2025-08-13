@@ -67,3 +67,4 @@ curl -X POST https://openshift-ai-mcp-server-mcp-ai-mcp-openshift.apps.rosa.sgai
 - No more proxy file errors
 
 The integration should now work seamlessly! 🚀
+

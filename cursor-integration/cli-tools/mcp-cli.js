@@ -206,19 +206,155 @@ class MCPCli {
         }
     }
 
+    async executeWorkflow(prompt, options = {}) {
+        try {
+            console.log(`🤖 Analyzing prompt: "${prompt}"`);
+            console.log('🔍 Determining optimal workflow...\n');
+            
+            const params = {
+                prompt: prompt,
+                dry_run: options.dryRun || false,
+                interactive: options.interactive || false,
+                ...options
+            };
+
+            const result = await this.makeRequest('tools/call', {
+                name: 'workflow_execute',
+                arguments: params
+            });
+
+            if (result.content && result.content[0]) {
+                const workflowResult = JSON.parse(result.content[0].text);
+                
+                if (options.dryRun) {
+                    console.log('🔍 Workflow Analysis (Dry Run):\n');
+                    console.log(`📋 Selected Workflow: ${workflowResult.selected_workflow}`);
+                    console.log(`📝 Description: ${workflowResult.workflow_description}`);
+                    console.log('\n📥 Extracted Parameters:');
+                    Object.entries(workflowResult.extracted_parameters).forEach(([key, value]) => {
+                        console.log(`   • ${key}: ${value}`);
+                    });
+                    console.log('\n🔧 Steps that would be executed:');
+                    workflowResult.steps_to_execute.forEach((step, index) => {
+                        console.log(`   ${index + 1}. ${step.description} (${step.tool})`);
+                    });
+                    console.log(`\n✅ ${workflowResult.message}`);
+                } else {
+                    console.log('✅ Workflow Execution Completed!\n');
+                    console.log(`📋 Workflow: ${workflowResult.workflow_name}`);
+                    console.log(`⏱️  Duration: ${workflowResult.duration}`);
+                    console.log(`🎯 Success: ${workflowResult.success ? '✅ Yes' : '❌ No'}`);
+                    
+                    if (workflowResult.error) {
+                        console.log(`❌ Error: ${workflowResult.error}`);
+                    }
+                    
+                    console.log('\n📊 Executed Steps:');
+                    workflowResult.executed_steps.forEach((step, index) => {
+                        const status = step.success ? '✅' : '❌';
+                        console.log(`   ${index + 1}. ${status} ${step.tool} (${step.duration})`);
+                        if (step.error) {
+                            console.log(`      Error: ${step.error}`);
+                        }
+                    });
+                    
+                    if (workflowResult.recommendations && workflowResult.recommendations.length > 0) {
+                        console.log('\n💡 Recommendations:');
+                        workflowResult.recommendations.forEach(rec => {
+                            console.log(`   ${rec}`);
+                        });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('❌ Workflow execution failed:', error.message);
+        }
+    }
+
+    async analyzePrompt(prompt) {
+        try {
+            console.log(`🔍 Analyzing prompt: "${prompt}"\n`);
+            
+            const result = await this.makeRequest('tools/call', {
+                name: 'workflow_analyze',
+                arguments: {
+                    prompt: prompt,
+                    show_parameters: true,
+                    show_confidence: true
+                }
+            });
+
+            if (result.content && result.content[0]) {
+                const analysis = JSON.parse(result.content[0].text);
+                
+                console.log('🤖 Intelligent Analysis Results:\n');
+                console.log(`📋 Selected Workflow: ${analysis.selected_workflow}`);
+                console.log(`📝 Description: ${analysis.workflow_description}`);
+                
+                console.log('\n📥 Extracted Parameters:');
+                Object.entries(analysis.extracted_parameters).forEach(([key, value]) => {
+                    console.log(`   • ${key}: ${value}`);
+                });
+                
+                if (analysis.confidence_scores) {
+                    console.log('\n📊 Confidence Scores:');
+                    Object.entries(analysis.confidence_scores)
+                        .sort((a, b) => b[1] - a[1])
+                        .forEach(([workflow, score]) => {
+                            const bar = '█'.repeat(Math.floor(score / 10));
+                            console.log(`   ${workflow.padEnd(20)} ${score.toString().padStart(3)}% ${bar}`);
+                        });
+                }
+                
+                console.log('\n🔧 Workflow Steps:');
+                analysis.workflow_steps.forEach((step, index) => {
+                    console.log(`   ${index + 1}. ${step.description} (${step.tool})`);
+                });
+            }
+        } catch (error) {
+            console.error('❌ Analysis failed:', error.message);
+        }
+    }
+
+    async listWorkflows() {
+        try {
+            const result = await this.makeRequest('tools/call', {
+                name: 'workflow_list',
+                arguments: {}
+            });
+
+            if (result.content && result.content[0]) {
+                console.log(result.content[0].text);
+            }
+        } catch (error) {
+            console.error('❌ Error listing workflows:', error.message);
+        }
+    }
+
     showUsage() {
         console.log(`
-🛠️  OpenShift MCP CLI Tool
+🛠️  OpenShift MCP CLI Tool with Intelligent Workflow Orchestration
 
 Usage: node mcp-cli.js <command> [options]
 
-Commands:
+🤖 Smart Commands:
+  execute "<prompt>"              Execute workflow based on natural language prompt
+  analyze "<prompt>"              Analyze prompt to show what would be executed
+  workflows                       List all available workflows
+
+📋 Traditional Commands:
   tools                           List all available MCP tools
   build <source> <image>          Build container image with UBI validation
   deploy <repo-url> <namespace>   Auto-deploy repository to OpenShift
   pods [namespace]                List pods (optionally in specific namespace)
 
-Examples:
+🚀 Smart Execution Examples:
+  node mcp-cli.js execute "Build and push my app from https://github.com/user/repo.git to quay.io/user/app:latest"
+  node mcp-cli.js execute "Deploy container from source to production namespace"
+  node mcp-cli.js execute "Scan my container image for security vulnerabilities"
+  node mcp-cli.js analyze "I want to containerize my app and deploy it"
+
+📋 Traditional Examples:
   node mcp-cli.js tools
   node mcp-cli.js build https://github.com/user/app.git quay.io/user/app:latest
   node mcp-cli.js deploy https://github.com/user/app.git my-namespace
@@ -227,7 +363,11 @@ Examples:
 Environment Variables:
   MCP_SERVER_URL    URL of the MCP server (default: OpenShift deployment)
 
-✨ Container builds include automatic Red Hat UBI validation!
+✨ New Features:
+🤖 Intelligent prompt analysis and workflow orchestration
+🔗 Automatic tool chaining based on user intent
+🛡️  Enhanced security scanning and UBI compliance validation
+📊 Detailed execution analytics and recommendations
 🚀 All operations integrate with your OpenShift CI/CD pipeline!
         `);
     }
@@ -246,6 +386,29 @@ async function main() {
     const command = args[0];
     
     switch (command) {
+        case 'execute':
+            if (args.length < 2) {
+                console.error('❌ Usage: execute "<prompt>"');
+                process.exit(1);
+            }
+            // Join all remaining args as the prompt (in case it has spaces)
+            const prompt = args.slice(1).join(' ');
+            await cli.executeWorkflow(prompt);
+            break;
+            
+        case 'analyze':
+            if (args.length < 2) {
+                console.error('❌ Usage: analyze "<prompt>"');
+                process.exit(1);
+            }
+            const analyzePrompt = args.slice(1).join(' ');
+            await cli.analyzePrompt(analyzePrompt);
+            break;
+            
+        case 'workflows':
+            await cli.listWorkflows();
+            break;
+            
         case 'tools':
             await cli.listTools();
             break;
@@ -282,3 +445,4 @@ if (require.main === module) {
 }
 
 module.exports = MCPCli;
+

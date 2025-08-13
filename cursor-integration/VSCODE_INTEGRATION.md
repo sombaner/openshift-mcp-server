@@ -312,3 +312,4 @@ export DEFAULT_NAMESPACE="development"
 - Enterprise-grade compliance
 
 All methods give you access to the **31 available MCP tools** for complete OpenShift and container management! 🎉
+

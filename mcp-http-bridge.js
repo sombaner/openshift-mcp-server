@@ -147,3 +147,4 @@ bridge.start().catch((error) => {
     console.error('Failed to start MCP bridge:', error);
     process.exit(1);
 });
+
