@@ -119,6 +119,77 @@ func (s *Server) initContainers() []server.ServerTool {
 			mcp.WithDestructiveHintAnnotation(false),
 			mcp.WithOpenWorldHintAnnotation(true),
 		), Handler: s.containerInspect},
+
+		{Tool: mcp.NewTool("container_pull",
+			mcp.WithDescription("Pull a container image from a registry to local storage. Supports authentication via environment variables or registry login. Can pull from Docker Hub, Quay.io, or private registries."),
+			mcp.WithString("image_name", mcp.Description("Container image name to pull. Examples: 'nginx:latest', 'quay.io/user/app:v1.0', 'docker.io/library/redis:alpine'. Registry will be auto-detected or default to docker.io."), mcp.Required()),
+			mcp.WithString("registry", mcp.Description("Source container registry. Will be extracted from image_name if not provided. Examples: 'quay.io', 'docker.io', 'ghcr.io', 'localhost:5000'.")),
+			mcp.WithString("username", mcp.Description("Registry username for authentication. Can also be provided via REGISTRY_USERNAME environment variable.")),
+			mcp.WithString("password", mcp.Description("Registry password/token for authentication. Can also be provided via REGISTRY_PASSWORD environment variable. For security, prefer environment variables.")),
+			mcp.WithString("platform", mcp.Description("Target platform for multi-arch images. Examples: 'linux/amd64', 'linux/arm64'. Defaults to current platform.")),
+			mcp.WithBoolean("skip_tls_verify", mcp.Description("Skip TLS certificate verification. Only use for private registries with self-signed certificates. Defaults to false.")),
+			mcp.WithBoolean("all_tags", mcp.Description("Pull all tags of the image. Defaults to false (pull only specified tag).")),
+			// Tool annotations
+			mcp.WithTitleAnnotation("Container: Pull Image from Registry"),
+			mcp.WithReadOnlyHintAnnotation(false),
+			mcp.WithDestructiveHintAnnotation(false),
+			mcp.WithOpenWorldHintAnnotation(true),
+		), Handler: s.containerPull},
+
+		{Tool: mcp.NewTool("container_run",
+			mcp.WithDescription("Run a container from an image with configurable options including port mappings, environment variables, and volumes. Supports both interactive and detached modes."),
+			mcp.WithString("image_name", mcp.Description("Container image name to run. Examples: 'nginx:latest', 'quay.io/user/app:v1.0', 'redis:alpine'."), mcp.Required()),
+			mcp.WithString("container_name", mcp.Description("Name to assign to the container. If not provided, a random name will be generated.")),
+			mcp.WithArray("ports", mcp.Description("Port mappings to expose on the host. Format: <hostPort>:<containerPort>. Examples: ['8080:80', '8443:443']. Use 'publish_all' to expose all ports."),
+				func(schema map[string]interface{}) {
+					schema["type"] = "array"
+					schema["items"] = map[string]interface{}{
+						"type": "string",
+					}
+				},
+			),
+			mcp.WithArray("environment", mcp.Description("Environment variables to set in the container. Format: <key>=<value>. Examples: ['ENV=production', 'PORT=8080']."),
+				func(schema map[string]interface{}) {
+					schema["type"] = "array"
+					schema["items"] = map[string]interface{}{
+						"type": "string",
+					}
+				},
+			),
+			mcp.WithArray("volumes", mcp.Description("Volume mounts for persistent storage. Format: <hostPath>:<containerPath>[:ro]. Examples: ['/data:/app/data', '/config:/etc/config:ro']."),
+				func(schema map[string]interface{}) {
+					schema["type"] = "array"
+					schema["items"] = map[string]interface{}{
+						"type": "string",
+					}
+				},
+			),
+			mcp.WithString("command", mcp.Description("Override the default command/entrypoint of the container. Example: '/bin/bash -c \"echo hello\"'.")),
+			mcp.WithString("working_dir", mcp.Description("Set the working directory inside the container. Example: '/app'.")),
+			mcp.WithString("user", mcp.Description("Run container as specific user. Format: 'uid:gid' or 'username'. Example: '1000:1000' or 'app'.")),
+			mcp.WithBoolean("detached", mcp.Description("Run container in detached mode (background). Defaults to true.")),
+			mcp.WithBoolean("interactive", mcp.Description("Keep STDIN open and allocate pseudo-TTY. Defaults to false.")),
+			mcp.WithBoolean("remove", mcp.Description("Automatically remove container when it exits. Defaults to false.")),
+			mcp.WithBoolean("publish_all", mcp.Description("Publish all exposed ports to random host ports. Defaults to false.")),
+			mcp.WithString("restart", mcp.Description("Restart policy. Options: 'no', 'always', 'unless-stopped', 'on-failure'. Defaults to 'no'.")),
+			// Tool annotations
+			mcp.WithTitleAnnotation("Container: Run Container from Image"),
+			mcp.WithReadOnlyHintAnnotation(false),
+			mcp.WithDestructiveHintAnnotation(false),
+			mcp.WithOpenWorldHintAnnotation(true),
+		), Handler: s.containerRun},
+
+		{Tool: mcp.NewTool("container_stop",
+			mcp.WithDescription("Stop a running container gracefully. Sends SIGTERM signal first, then SIGKILL after timeout. Can stop by container name or ID."),
+			mcp.WithString("container_name", mcp.Description("Container name or ID to stop. Examples: 'my-app', 'wonderful_turing', 'sha256:abc123...'. Can use partial IDs."), mcp.Required()),
+			mcp.WithString("timeout", mcp.Description("Time to wait for graceful shutdown before sending SIGKILL. Examples: '30s', '1m', '5'. Defaults to '10s'.")),
+			mcp.WithBoolean("force", mcp.Description("Force stop the container immediately with SIGKILL. Defaults to false.")),
+			// Tool annotations
+			mcp.WithTitleAnnotation("Container: Stop Running Container"),
+			mcp.WithReadOnlyHintAnnotation(false),
+			mcp.WithDestructiveHintAnnotation(false),
+			mcp.WithOpenWorldHintAnnotation(true),
+		), Handler: s.containerStop},
 	}
 }
 
@@ -309,6 +380,125 @@ func (s *Server) containerInspect(ctx context.Context, request mcp.CallToolReque
 	}
 
 	jsonResult, _ := json.MarshalIndent(inspectResult, "", "  ")
+	return NewTextResult(string(jsonResult), nil), nil
+}
+
+// containerPull handles pulling container images from registries
+func (s *Server) containerPull(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args, ok := request.Params.Arguments.(map[string]interface{})
+	if !ok {
+		return NewTextResult("", fmt.Errorf("invalid arguments format")), nil
+	}
+
+	imageName, ok := args["image_name"].(string)
+	if !ok || imageName == "" {
+		return NewTextResult("", fmt.Errorf("image_name parameter is required")), nil
+	}
+
+	registry := getStringArg(args, "registry", extractRegistryFromImage(imageName))
+	username := getStringArg(args, "username", os.Getenv("REGISTRY_USERNAME"))
+	password := getStringArg(args, "password", os.Getenv("REGISTRY_PASSWORD"))
+	platform := getStringArg(args, "platform", "")
+	skipTLSVerify := getBoolArg(args, "skip_tls_verify", false)
+	allTags := getBoolArg(args, "all_tags", false)
+
+	klog.V(2).Infof("Pulling container image: %s from registry: %s", imageName, registry)
+
+	pullResult, err := s.performContainerPull(ctx, imageName, registry, username, password, platform, skipTLSVerify, allTags)
+	if err != nil {
+		return NewTextResult("", fmt.Errorf("container pull failed: %v", err)), nil
+	}
+
+	jsonResult, _ := json.MarshalIndent(pullResult, "", "  ")
+	return NewTextResult(string(jsonResult), nil), nil
+}
+
+// containerRun handles running containers from images
+func (s *Server) containerRun(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args, ok := request.Params.Arguments.(map[string]interface{})
+	if !ok {
+		return NewTextResult("", fmt.Errorf("invalid arguments format")), nil
+	}
+
+	imageName, ok := args["image_name"].(string)
+	if !ok || imageName == "" {
+		return NewTextResult("", fmt.Errorf("image_name parameter is required")), nil
+	}
+
+	containerName := getStringArg(args, "container_name", "")
+	command := getStringArg(args, "command", "")
+	workingDir := getStringArg(args, "working_dir", "")
+	user := getStringArg(args, "user", "")
+	restart := getStringArg(args, "restart", "no")
+	detached := getBoolArg(args, "detached", true)
+	interactive := getBoolArg(args, "interactive", false)
+	remove := getBoolArg(args, "remove", false)
+	publishAll := getBoolArg(args, "publish_all", false)
+
+	// Parse port mappings
+	var ports []string
+	if portsArg, ok := args["ports"].([]interface{}); ok {
+		for _, port := range portsArg {
+			if portStr, ok := port.(string); ok {
+				ports = append(ports, portStr)
+			}
+		}
+	}
+
+	// Parse environment variables
+	var environment []string
+	if envArg, ok := args["environment"].([]interface{}); ok {
+		for _, env := range envArg {
+			if envStr, ok := env.(string); ok {
+				environment = append(environment, envStr)
+			}
+		}
+	}
+
+	// Parse volume mounts
+	var volumes []string
+	if volArg, ok := args["volumes"].([]interface{}); ok {
+		for _, vol := range volArg {
+			if volStr, ok := vol.(string); ok {
+				volumes = append(volumes, volStr)
+			}
+		}
+	}
+
+	klog.V(2).Infof("Running container from image: %s", imageName)
+
+	runResult, err := s.performContainerRun(ctx, imageName, containerName, command, workingDir, user, restart, ports, environment, volumes, detached, interactive, remove, publishAll)
+	if err != nil {
+		return NewTextResult("", fmt.Errorf("container run failed: %v", err)), nil
+	}
+
+	jsonResult, _ := json.MarshalIndent(runResult, "", "  ")
+	return NewTextResult(string(jsonResult), nil), nil
+}
+
+// containerStop handles stopping running containers
+func (s *Server) containerStop(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args, ok := request.Params.Arguments.(map[string]interface{})
+	if !ok {
+		return NewTextResult("", fmt.Errorf("invalid arguments format")), nil
+	}
+
+	containerName, ok := args["container_name"].(string)
+	if !ok || containerName == "" {
+		return NewTextResult("", fmt.Errorf("container_name parameter is required")), nil
+	}
+
+	timeout := getStringArg(args, "timeout", "10s")
+	force := getBoolArg(args, "force", false)
+
+	klog.V(2).Infof("Stopping container: %s", containerName)
+
+	stopResult, err := s.performContainerStop(ctx, containerName, timeout, force)
+	if err != nil {
+		return NewTextResult("", fmt.Errorf("container stop failed: %v", err)), nil
+	}
+
+	jsonResult, _ := json.MarshalIndent(stopResult, "", "  ")
 	return NewTextResult(string(jsonResult), nil), nil
 }
 

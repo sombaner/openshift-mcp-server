@@ -563,6 +563,248 @@ func (s *Server) pushSingleImage(ctx context.Context, runtime, imageName string,
 	return result, nil
 }
 
+// performContainerPull executes the actual container pull process
+func (s *Server) performContainerPull(ctx context.Context, imageName, registry, username, password, platform string, skipTLSVerify, allTags bool) (map[string]interface{}, error) {
+	startTime := time.Now()
+	
+	// Detect container runtime (podman or docker)
+	containerRuntime, err := detectContainerRuntime()
+	if err != nil {
+		return nil, fmt.Errorf("no container runtime found: %v", err)
+	}
+	
+	klog.V(1).Infof("Pulling image %s using %s", imageName, containerRuntime)
+
+	// Prepare pull command
+	var cmd *exec.Cmd
+	args := []string{"pull"}
+	
+	// Add platform if specified
+	if platform != "" {
+		args = append(args, "--platform", platform)
+	}
+	
+	// Add TLS verification skip if needed
+	if skipTLSVerify {
+		args = append(args, "--tls-verify=false")
+	}
+	
+	// Add all-tags flag if needed
+	if allTags {
+		args = append(args, "--all-tags")
+		// Remove tag from image name for all-tags pull
+		if strings.Contains(imageName, ":") {
+			imageName = strings.Split(imageName, ":")[0]
+		}
+	}
+	
+	args = append(args, imageName)
+	cmd = exec.CommandContext(ctx, containerRuntime, args...)
+	
+	// Handle authentication if provided
+	if username != "" && password != "" {
+		loginCmd := exec.CommandContext(ctx, containerRuntime, "login", "--username", username, "--password-stdin", registry)
+		loginCmd.Stdin = strings.NewReader(password)
+		if err := loginCmd.Run(); err != nil {
+			klog.V(1).Infof("Registry login failed: %v", err)
+		}
+	}
+	
+	// Execute pull command
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("pull failed: %v, output: %s", err, string(output))
+	}
+	
+	duration := time.Since(startTime)
+	
+	// Parse output for pulled images
+	pulledImages := []string{}
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, "Trying to pull") || strings.Contains(line, "Getting image") {
+			pulledImages = append(pulledImages, line)
+		}
+	}
+	
+	result := map[string]interface{}{
+		"image_name":      imageName,
+		"registry":        registry,
+		"platform":        platform,
+		"all_tags":        allTags,
+		"pulled_images":   pulledImages,
+		"pull_duration":   duration.String(),
+		"output":          string(output),
+		"status":          "success",
+		"timestamp":       time.Now().Format(time.RFC3339),
+	}
+	
+	return result, nil
+}
+
+// performContainerRun executes the actual container run process
+func (s *Server) performContainerRun(ctx context.Context, imageName, containerName, command, workingDir, user, restart string, ports, environment, volumes []string, detached, interactive, remove, publishAll bool) (map[string]interface{}, error) {
+	startTime := time.Now()
+	
+	// Detect container runtime (podman or docker)
+	containerRuntime, err := detectContainerRuntime()
+	if err != nil {
+		return nil, fmt.Errorf("no container runtime found: %v", err)
+	}
+	
+	klog.V(1).Infof("Running container from image %s using %s", imageName, containerRuntime)
+
+	// Prepare run command
+	args := []string{"run"}
+	
+	// Add container name if specified
+	if containerName != "" {
+		args = append(args, "--name", containerName)
+	}
+	
+	// Add detached mode
+	if detached {
+		args = append(args, "--detach")
+	}
+	
+	// Add interactive mode
+	if interactive {
+		args = append(args, "--interactive", "--tty")
+	}
+	
+	// Add remove flag
+	if remove {
+		args = append(args, "--rm")
+	}
+	
+	// Add port mappings
+	if publishAll {
+		args = append(args, "--publish-all")
+	} else {
+		for _, port := range ports {
+			args = append(args, "--publish", port)
+		}
+	}
+	
+	// Add environment variables
+	for _, env := range environment {
+		args = append(args, "--env", env)
+	}
+	
+	// Add volume mounts
+	for _, volume := range volumes {
+		args = append(args, "--volume", volume)
+	}
+	
+	// Add working directory
+	if workingDir != "" {
+		args = append(args, "--workdir", workingDir)
+	}
+	
+	// Add user
+	if user != "" {
+		args = append(args, "--user", user)
+	}
+	
+	// Add restart policy
+	if restart != "no" {
+		args = append(args, "--restart", restart)
+	}
+	
+	// Add image name
+	args = append(args, imageName)
+	
+	// Add command if specified
+	if command != "" {
+		// Split command into parts
+		cmdParts := strings.Fields(command)
+		args = append(args, cmdParts...)
+	}
+	
+	cmd := exec.CommandContext(ctx, containerRuntime, args...)
+	
+	// Execute run command
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("container run failed: %v, output: %s", err, string(output))
+	}
+	
+	duration := time.Since(startTime)
+	
+	// Extract container ID from output
+	containerID := strings.TrimSpace(string(output))
+	
+	result := map[string]interface{}{
+		"image_name":     imageName,
+		"container_name": containerName,
+		"container_id":   containerID,
+		"detached":       detached,
+		"interactive":    interactive,
+		"ports":          ports,
+		"environment":    environment,
+		"volumes":        volumes,
+		"command":        command,
+		"working_dir":    workingDir,
+		"user":           user,
+		"restart":        restart,
+		"run_duration":   duration.String(),
+		"output":         string(output),
+		"status":         "success",
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}
+	
+	return result, nil
+}
+
+// performContainerStop executes the actual container stop process
+func (s *Server) performContainerStop(ctx context.Context, containerName, timeout string, force bool) (map[string]interface{}, error) {
+	startTime := time.Now()
+	
+	// Detect container runtime (podman or docker)
+	containerRuntime, err := detectContainerRuntime()
+	if err != nil {
+		return nil, fmt.Errorf("no container runtime found: %v", err)
+	}
+	
+	klog.V(1).Infof("Stopping container %s using %s", containerName, containerRuntime)
+
+	// Prepare stop command
+	var cmd *exec.Cmd
+	if force {
+		// Use kill for immediate stop
+		cmd = exec.CommandContext(ctx, containerRuntime, "kill", containerName)
+	} else {
+		// Use stop with timeout
+		args := []string{"stop"}
+		if timeout != "" {
+			args = append(args, "--time", timeout)
+		}
+		args = append(args, containerName)
+		cmd = exec.CommandContext(ctx, containerRuntime, args...)
+	}
+	
+	// Execute stop command
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("container stop failed: %v, output: %s", err, string(output))
+	}
+	
+	duration := time.Since(startTime)
+	
+	result := map[string]interface{}{
+		"container_name": containerName,
+		"timeout":        timeout,
+		"force":          force,
+		"stop_duration":  duration.String(),
+		"output":         string(output),
+		"status":         "success",
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}
+	
+	return result, nil
+}
+
 func (s *Server) tagImage(ctx context.Context, runtime, sourceImage, targetImage string) error {
 	cmd := exec.CommandContext(ctx, runtime, "tag", sourceImage, targetImage)
 	return cmd.Run()

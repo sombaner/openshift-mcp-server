@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 
-	"github.com/sur309/openshift-mcp-server/pkg/kubernetes-mcp-server/cmd"
+	"github.com/sur309/openshift-mcp-server/pkg/openshift-mcp-server/cmd"
 )
 
 func main() {
