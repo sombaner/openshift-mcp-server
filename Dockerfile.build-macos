@@ -1,0 +1,28 @@
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+# Install necessary packages
+RUN apk add --no-cache git ca-certificates
+
+# Set the working directory
+WORKDIR /src
+
+# Copy go.mod and go.sum for dependency resolution
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY cmd/ ./cmd/
+COPY pkg/ ./pkg/
+
+# Build the binary for macOS ARM64
+RUN CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -a -installsuffix cgo \
+    -ldflags="-w -s" \
+    -o openshift-mcp-server \
+    ./cmd/openshift-mcp-server
+
+# Final stage - use alpine to allow shell access for extraction
+FROM alpine:3.18
+COPY --from=builder /src/openshift-mcp-server /openshift-mcp-server

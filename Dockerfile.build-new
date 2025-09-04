@@ -1,0 +1,44 @@
+# Simple Dockerfile to build the openshift-mcp-server binary with our new container tools
+FROM golang:1.24-alpine AS builder
+
+# Install dependencies
+RUN apk add --no-cache git ca-certificates
+
+# Set work directory
+WORKDIR /src
+
+# Copy go module files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY cmd/ ./cmd/
+COPY pkg/ ./pkg/
+
+# Build the openshift-mcp-server binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+    -ldflags="-w -s" \
+    -o openshift-mcp-server \
+    ./cmd/openshift-mcp-server
+
+# Use a minimal base image for the final container
+FROM alpine:3.18
+
+# Install ca-certificates for HTTPS
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /app
+
+# Copy the binary from builder
+COPY --from=builder /src/openshift-mcp-server .
+
+# Make it executable
+RUN chmod +x ./openshift-mcp-server
+
+# Expose default port
+EXPOSE 8080
+
+# Run the server
+ENTRYPOINT ["./openshift-mcp-server"]
